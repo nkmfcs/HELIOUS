@@ -1,0 +1,92 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #f2f2f7;
+  --color-surface: #ffffff;
+  --color-elevated: #e8e8ed;
+  --color-fg: #111111;
+  --color-muted: #6c6c70;
+  --color-subtle: #8e8e93;
+  --color-border: rgb(17 17 17 / 0.08);
+  --color-border-strong: rgb(17 17 17 / 0.16);
+  --color-accent: #1f4a42;
+  --color-accent-fg: #f4f7f6;
+  --color-on-ink: #f4f7f6;
+  --color-ok: #1f7a4d;
+  --color-ok-bg: rgb(31 122 77 / 0.1);
+  --color-warn: #9a6b14;
+  --color-warn-bg: rgb(154 107 20 / 0.1);
+  --color-danger: #c0392b;
+  --color-danger-bg: rgb(192 57 43 / 0.1);
+  --color-white-chip: #ffffff;
+  --color-black-chip: #111111;
+  --color-gold-chip: #c4a574;
+
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --shadow-soft: 0 0 0 0 transparent;
+  --shadow-float:
+    0 0 0 1px rgb(17 17 17 / 0.06),
+    0 10px 28px rgb(17 17 17 / 0.12);
+}
+
+@layer base {
+  html,
+  body {
+    background: var(--color-bg);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    min-height: 100dvh;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+  }
+
+  select,
+  input[type="date"] {
+    color-scheme: light;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(17 17 17 / 0.18) transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.tab-dock {
+  padding-bottom: max(0.7rem, env(safe-area-inset-bottom));
+}
