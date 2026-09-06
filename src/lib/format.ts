@@ -1,4 +1,4 @@
-import { COLORS, type Color } from "./types";
+import { COLORS, type Color } from "./types.ts";
 
 export function formatNum(n: number): string {
   return new Intl.NumberFormat("ru-RU").format(Math.round(n || 0));

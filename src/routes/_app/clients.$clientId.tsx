@@ -19,8 +19,12 @@ function ClientPage() {
   const deleteClient = useWarehouse((s) => s.deleteClient);
   const addPayment = useWarehouse((s) => s.addPayment);
   const client = state.clients.find((c) => c.id === clientId);
-  const orders = state.orders.filter((o) => o.clientId === clientId).sort((a, b) => b.date.localeCompare(a.date));
-  const payments = state.payments.filter((p) => p.clientId === clientId).sort((a, b) => b.date.localeCompare(a.date));
+  const orders = state.orders
+    .filter((o) => o.clientId === clientId)
+    .sort((a, b) => b.date.localeCompare(a.date));
+  const payments = state.payments
+    .filter((p) => p.clientId === clientId)
+    .sort((a, b) => b.date.localeCompare(a.date));
   const [pay, setPay] = useState("");
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(client?.name ?? "");
@@ -53,9 +57,17 @@ function ClientPage() {
       toast("Укажите сумму");
       return;
     }
-    addPayment({ clientId, amount, note: "Оплата по клиенту" });
+    const result = addPayment({ clientId, amount, note: "Оплата по клиенту" });
+    if (!result) {
+      toast("У клиента уже нет долга");
+      return;
+    }
     setPay("");
-    toast(`Принято ${formatSum(amount)}`);
+    toast(
+      result.unapplied > 0
+        ? `Принято ${formatSum(result.applied)}. Лишние ${formatSum(result.unapplied)} не записаны.`
+        : `Принято ${formatSum(result.applied)}`,
+    );
   }
 
   return (
@@ -78,7 +90,12 @@ function ClientPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Долг" value={formatCompact(debt)} tone={debt > 0 ? "danger" : "ok"} hint="сум" />
+        <Stat
+          label="Долг"
+          value={formatCompact(debt)}
+          tone={debt > 0 ? "danger" : "ok"}
+          hint="сум"
+        />
         <Stat label="Оборот" value={formatCompact(clientTurnover(state, client.id))} />
         <Stat label="Пар взял" value={formatNum(clientPairs(state, client.id))} />
         <Stat label="Заказов" value={String(orders.filter((o) => o.status === "shipped").length)} />
@@ -95,7 +112,12 @@ function ClientPage() {
               placeholder={`до ${formatNum(debt)}`}
             />
           </div>
-          <Button variant="secondary" onClick={() => { setPay(String(debt)); }}>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setPay(String(debt));
+            }}
+          >
             Весь долг
           </Button>
           <Button onClick={payNow}>Зачислить</Button>
@@ -105,7 +127,11 @@ function ClientPage() {
       <Card className="p-4">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-medium">Карточка</h2>
-          <button type="button" className="text-xs text-muted hover:text-fg" onClick={() => setEditing((v) => !v)}>
+          <button
+            type="button"
+            className="text-xs text-muted hover:text-fg"
+            onClick={() => setEditing((v) => !v)}
+          >
             {editing ? "Закрыть" : "Изменить"}
           </button>
         </div>
@@ -193,7 +219,9 @@ function ClientPage() {
             {payments.map((p) => (
               <div key={p.id} className="flex justify-between px-4 py-3 text-sm">
                 <span className="text-muted">{formatDate(p.date)}</span>
-                <span className={p.amount < 0 ? "text-danger" : "text-ok"}>{formatSum(p.amount)}</span>
+                <span className={p.amount < 0 ? "text-danger" : "text-ok"}>
+                  {formatSum(p.amount)}
+                </span>
               </div>
             ))}
           </Card>

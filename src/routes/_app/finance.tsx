@@ -14,7 +14,6 @@ export const Route = createFileRoute("/_app/finance")({ component: FinancePage }
 function FinancePage() {
   const state = useWarehouse();
   const setCosts = useWarehouse((s) => s.setCosts);
-  const loadOfficial = useWarehouse((s) => s.loadOfficial);
   const importState = useWarehouse((s) => s.importState);
   const cost = pairCost(state.costs);
   const profit = SELL_PRICE - cost;
@@ -86,7 +85,11 @@ function FinancePage() {
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Себестоимость" value={formatNum(cost)} />
         <Stat label="Прибыль / пару" value={formatNum(profit)} tone="ok" />
-        <Stat label="Склад" value={formatCompact(warehouseValue(state))} hint={`${formatNum(pairs)} пар`} />
+        <Stat
+          label="Склад"
+          value={formatCompact(warehouseValue(state))}
+          hint={`${formatNum(pairs)} пар`}
+        />
         <Stat label="Потенциал" value={formatCompact(revenuePotential(state))} />
       </div>
 
@@ -120,8 +123,8 @@ function FinancePage() {
           ))}
         </div>
         <p className="text-xs text-subtle">
-          1 м ≈ {state.costs.avgMeters > 0 ? Math.round(1 / state.costs.avgMeters) : "—"} пар · цена продажи{" "}
-          {formatSum(SELL_PRICE)}
+          1 м ≈ {state.costs.avgMeters > 0 ? Math.round(1 / state.costs.avgMeters) : "—"} пар · цена
+          продажи {formatSum(SELL_PRICE)}
         </p>
       </Card>
 
@@ -138,16 +141,6 @@ function FinancePage() {
             Импорт
             <input type="file" accept=".json" className="hidden" onChange={onImport} />
           </label>
-          <Button
-            variant="ghost"
-            onClick={() => {
-              if (!confirm("Подставить актуальный склад (вечер 17.08)? Касса останется.")) return;
-              loadOfficial();
-              toast("Загружен актуальный склад");
-            }}
-          >
-            Актуальный склад
-          </Button>
         </div>
         <div className="flex gap-4 text-sm">
           <Link to="/preorder" className="text-muted hover:text-fg">
@@ -161,5 +154,3 @@ function FinancePage() {
     </div>
   );
 }
-
-

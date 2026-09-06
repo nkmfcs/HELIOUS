@@ -1,4 +1,4 @@
-import { COLORS, SIZES, type Color } from "./types";
+import { COLORS, SIZES, type Color } from "./types.ts";
 
 export const BOX_IDS = [1, 2, 3, 4, 5] as const;
 export type BoxId = (typeof BOX_IDS)[number];
@@ -62,7 +62,9 @@ export function groupItemsByBox<T extends { color: Color; size: number }>(
     const box = boxOf(map, item.color, item.size);
     buckets.get(box)!.push(item);
   }
-  return BOX_IDS.map((box) => ({ box, items: buckets.get(box)! })).filter((g) => g.items.length > 0);
+  return BOX_IDS.map((box) => ({ box, items: buckets.get(box)! })).filter(
+    (g) => g.items.length > 0,
+  );
 }
 
 export function moveWhite1719ToBox1<T extends { boxes?: BoxMap | null }>(s: T): T {

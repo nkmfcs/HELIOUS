@@ -3,7 +3,15 @@ import { useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Card, Stat } from "@/components/ui/card";
 import { availableMonths, clientDebt, dayReport, monthSummary } from "@/lib/stats";
-import { formatCompact, formatDate, formatNum, formatSum, monthKey, monthLabel, todayISO } from "@/lib/format";
+import {
+  formatCompact,
+  formatDate,
+  formatNum,
+  formatSum,
+  monthKey,
+  monthLabel,
+  todayISO,
+} from "@/lib/format";
 import { useWarehouse } from "@/lib/store";
 
 export const Route = createFileRoute("/_app/reports")({ component: ReportsPage });
@@ -15,7 +23,9 @@ function ReportsPage() {
   const [day, setDay] = useState(todayISO());
   const summary = monthSummary(state, ym);
   const daily = dayReport(state, day);
-  const dayEvents = state.events.filter((e) => e.date === day).sort((a, b) => a.id.localeCompare(b.id));
+  const dayEvents = state.events
+    .filter((e) => e.date === day)
+    .sort((a, b) => a.id.localeCompare(b.id));
 
   const chart = useMemo(
     () =>
@@ -44,15 +54,19 @@ function ReportsPage() {
   const typeLabel: Record<string, string> = {
     incoming: "Приход",
     order: "Заказ",
+    order_edit: "Изменение заказа",
     payment: "Оплата",
     cancel: "Отмена",
+    stock_adjustment: "Корректировка склада",
   };
 
   return (
     <div className="space-y-8">
       <div>
         <h1 className="text-3xl font-semibold tracking-tight">Отчёты</h1>
-        <p className="mt-1 text-sm text-muted">День и месяц отдельно. Сводка по заказам, приходу и деньгам.</p>
+        <p className="mt-1 text-sm text-muted">
+          День и месяц отдельно. Сводка по заказам, приходу и деньгам.
+        </p>
       </div>
 
       <section className="space-y-4">
@@ -83,8 +97,18 @@ function ReportsPage() {
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chart}>
                   <CartesianGrid stroke="rgb(28 27 24 / 0.08)" vertical={false} />
-                  <XAxis dataKey="name" tick={{ fill: "#6a665c", fontSize: 12 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fill: "#6a665c", fontSize: 12 }} axisLine={false} tickLine={false} width={32} />
+                  <XAxis
+                    dataKey="name"
+                    tick={{ fill: "#6a665c", fontSize: 12 }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tick={{ fill: "#6a665c", fontSize: 12 }}
+                    axisLine={false}
+                    tickLine={false}
+                    width={32}
+                  />
                   <Tooltip
                     contentStyle={{
                       background: "#fffcf7",
@@ -123,7 +147,9 @@ function ReportsPage() {
                     <td className="px-4 py-2">{formatDate(d.date)}</td>
                     <td className="px-2 py-2 text-right font-mono tabular">{d.orderCount}</td>
                     <td className="px-2 py-2 text-right font-mono tabular">{d.shippedPairs}</td>
-                    <td className="px-4 py-2 text-right font-mono tabular">{formatNum(d.billed)}</td>
+                    <td className="px-4 py-2 text-right font-mono tabular">
+                      {formatNum(d.billed)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -137,7 +163,11 @@ function ReportsPage() {
             <ul className="divide-y divide-border">
               {topClients.map((c) => (
                 <li key={c.id}>
-                  <Link to="/clients/$clientId" params={{ clientId: c.id }} className="flex justify-between py-2.5 text-sm">
+                  <Link
+                    to="/clients/$clientId"
+                    params={{ clientId: c.id }}
+                    className="flex justify-between py-2.5 text-sm"
+                  >
                     <span>
                       {c.name}
                       <span className="text-muted">{c.shop ? ` · ${c.shop}` : ""}</span>
@@ -167,7 +197,10 @@ function ReportsPage() {
           <Stat label="Заказов" value={String(daily.orderCount)} />
           <Stat label="Отгружено пар" value={formatNum(daily.shippedPairs)} />
           <Stat label="Выставлено" value={formatCompact(daily.billed)} />
-          <Stat label="Приход / оплата" value={`${daily.incomingPairs} / ${formatCompact(daily.paid)}`} />
+          <Stat
+            label="Приход / оплата"
+            value={`${daily.incomingPairs} / ${formatCompact(daily.paid)}`}
+          />
         </div>
         <Card className="divide-y divide-border">
           {dayEvents.length === 0 ? (

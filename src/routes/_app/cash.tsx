@@ -1,11 +1,18 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Group, MetricRow, SectionLabel } from "@/components/ui/card";
 import { Input, Label } from "@/components/ui/input";
 import { formatCompact, formatDate, formatNum, todayISO } from "@/lib/format";
-import { cashBalance, cashLabel, cashLedger, cashTotals, clientDebt, payableLeft } from "@/lib/stats";
+import {
+  cashBalance,
+  cashLabel,
+  cashLedger,
+  cashTotals,
+  clientDebt,
+  payableLeft,
+} from "@/lib/stats";
 import { useWarehouse } from "@/lib/store";
 import { type CashKind } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -38,7 +45,7 @@ function CashPage() {
   const [opening, setOpening] = useState(String(state.cashOpening || ""));
   const [kill, setKill] = useState<string | null>(null);
 
-  const ledger = useMemo(() => cashLedger(state).reverse(), [state.cash, state.cashOpening]);
+  const ledger = cashLedger(state).reverse();
   const bal = cashBalance(state);
   const tot = cashTotals(state);
   const debtors = state.clients
@@ -60,14 +67,25 @@ function CashPage() {
       return;
     }
     if (kind === "income" && clientId) {
-      addPayment({ clientId, amount: n, note: note || "Оплата", date });
+      const result = addPayment({ clientId, amount: n, note: note || "Оплата", date });
+      if (!result) {
+        toast("У клиента уже нет долга");
+        return;
+      }
+      if (result.unapplied > 0) {
+        toast(
+          `Принято ${formatNum(result.applied)}. Лишние ${formatNum(result.unapplied)} не записаны.`,
+        );
+      } else {
+        toast("Приход записан, долг закрыт");
+      }
     } else {
       addCash({ kind, amount: n, person, note, date, clientId: undefined });
+      toast(kind === "income" ? "Приход записан" : "Списание записано");
     }
     setAmount("");
     setPerson("");
     setNote("");
-    toast(kind === "income" ? "Приход записан, долг закрыт" : "Списание записано");
   }
 
   function saveOpening() {
@@ -86,7 +104,12 @@ function CashPage() {
 
       <Group>
         <div className="px-4 pb-4 pt-5">
-          <div className={cn("text-4xl font-semibold tabular leading-none", bal < 0 ? "text-danger" : "text-fg")}>
+          <div
+            className={cn(
+              "text-4xl font-semibold tabular leading-none",
+              bal < 0 ? "text-danger" : "text-fg",
+            )}
+          >
             {formatNum(bal)}
           </div>
           <div className="mt-1 text-sm text-muted">на руках сейчас</div>
@@ -106,7 +129,12 @@ function CashPage() {
         <Group className="space-y-3 p-4">
           <div>
             <Label>Сколько было на руках до учёта</Label>
-            <Input inputMode="numeric" value={opening} onChange={(e) => setOpening(e.target.value)} placeholder="0" />
+            <Input
+              inputMode="numeric"
+              value={opening}
+              onChange={(e) => setOpening(e.target.value)}
+              placeholder="0"
+            />
           </div>
           <Button className="w-full" onClick={saveOpening}>
             Сохранить старт
@@ -122,7 +150,11 @@ function CashPage() {
               <div key={c.id}>
                 {i > 0 ? <div className="ml-4 h-px bg-border" /> : null}
                 <div className="flex items-center gap-3 px-4 py-3">
-                  <Link to="/clients/$clientId" params={{ clientId: c.id }} className="min-w-0 flex-1">
+                  <Link
+                    to="/clients/$clientId"
+                    params={{ clientId: c.id }}
+                    className="min-w-0 flex-1"
+                  >
                     <div className="text-sm font-medium">
                       {c.name}
                       {c.shop ? ` · ${c.shop}` : ""}
@@ -183,6 +215,16 @@ function CashPage() {
           <MetricRow label="Снял себе" value={formatCompact(tot.withdraw)} />
           <div className="ml-4 h-px bg-border" />
           <MetricRow label="Прочее" value={formatCompact(tot.other)} />
+          {tot.refund > 0 ? (
+            <>
+              <div className="ml-4 h-px bg-border" />
+              <MetricRow
+                label="Возвраты клиентам"
+                value={formatCompact(tot.refund)}
+                tone="danger"
+              />
+            </>
+          ) : null}
         </Group>
       </section>
 
@@ -234,7 +276,11 @@ function CashPage() {
           {kind === "worker" ? (
             <div>
               <Label>Кто получил</Label>
-              <Input value={person} onChange={(e) => setPerson(e.target.value)} placeholder="Имя работника" />
+              <Input
+                value={person}
+                onChange={(e) => setPerson(e.target.value)}
+                placeholder="Имя работника"
+              />
             </div>
           ) : null}
           <div>
@@ -259,7 +305,9 @@ function CashPage() {
         <SectionLabel>История</SectionLabel>
         {ledger.length === 0 ? (
           <Group>
-            <p className="px-4 py-5 text-sm text-muted">Пока пусто. Запиши материал, зарплату или снятие.</p>
+            <p className="px-4 py-5 text-sm text-muted">
+              Пока пусто. Запиши материал, зарплату или снятие.
+            </p>
           </Group>
         ) : (
           <Group>
@@ -283,25 +331,34 @@ function CashPage() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className={cn("text-sm font-semibold tabular", plus ? "text-ok" : "text-danger")}>
+                      <div
+                        className={cn(
+                          "text-sm font-semibold tabular",
+                          plus ? "text-ok" : "text-danger",
+                        )}
+                      >
                         {plus ? "+" : "−"}
                         {formatNum(t.amount)}
                       </div>
-                      <button
-                        type="button"
-                        className="mt-2 min-h-9 px-1 text-xs text-danger"
-                        onClick={() => {
-                          if (kill !== t.id) {
-                            setKill(t.id);
-                            return;
-                          }
-                          deleteCash(t.id);
-                          setKill(null);
-                          toast("Запись удалена");
-                        }}
-                      >
-                        {kill === t.id ? "точно удалить" : "удалить"}
-                      </button>
+                      {!t.locked ? (
+                        <button
+                          type="button"
+                          className="mt-2 min-h-9 px-1 text-xs text-danger"
+                          onClick={() => {
+                            if (kill !== t.id) {
+                              setKill(t.id);
+                              return;
+                            }
+                            deleteCash(t.id);
+                            setKill(null);
+                            toast("Запись удалена");
+                          }}
+                        >
+                          {kill === t.id ? "точно удалить" : "удалить"}
+                        </button>
+                      ) : (
+                        <div className="mt-2 text-xs text-subtle">системная запись</div>
+                      )}
                     </div>
                   </div>
                 </div>

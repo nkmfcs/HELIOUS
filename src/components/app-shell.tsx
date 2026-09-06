@@ -53,13 +53,13 @@ function isMorePath(pathname: string) {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const stock = useWarehouse((s) => s.stock);
+  const debt = useWarehouse((s) => totalDebt(s));
   const { isPending } = useCurrentUserState();
   const cloud = useCloud();
   useEffect(() => {
     startCloudSync();
   }, []);
   const pairs = allStockTotal(stock);
-  const debt = totalDebt(useWarehouse.getState());
 
   return (
     <div className="min-h-dvh bg-bg text-fg">
@@ -70,7 +70,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </Link>
           <div className="mt-4 font-mono text-xs text-muted tabular">
             {formatNum(pairs)} пар
-            {debt > 0 ? <span className="mt-0.5 block text-danger">долг {formatCompact(debt)}</span> : null}
+            {debt > 0 ? (
+              <span className="mt-0.5 block text-danger">долг {formatCompact(debt)}</span>
+            ) : null}
           </div>
           <div className="mt-2 text-xs text-subtle">{cloudLabel(cloud.status)}</div>
           <Button asChild className="mt-4 w-full" size="sm">

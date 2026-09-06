@@ -11,6 +11,7 @@ import { boxOf, groupItemsByBox } from "@/lib/boxes";
 import { useWarehouse } from "@/lib/store";
 import { orderDebt } from "@/lib/stats";
 import { COLORS } from "@/lib/types";
+import { OrderEditor } from "@/components/order-editor";
 
 export const Route = createFileRoute("/_app/orders/$orderId")({ component: OrderPage });
 
@@ -23,6 +24,7 @@ function OrderPage() {
   const order = state.orders.find((o) => o.id === orderId);
   const boxes = state.boxes;
   const [pay, setPay] = useState("");
+  const [editing, setEditing] = useState(false);
 
   if (!order) {
     return (
@@ -37,6 +39,33 @@ function OrderPage() {
 
   const client = state.clients.find((c) => c.id === order.clientId);
   const debt = orderDebt(order);
+  const detailedPairs = order.items.reduce((sum, item) => sum + item.qty, 0);
+  const hasInventoryDetails = detailedPairs === order.totalPairs;
+
+  if (editing && order.status === "shipped" && hasInventoryDetails) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <button
+            type="button"
+            className="text-xs text-muted hover:text-fg"
+            onClick={() => setEditing(false)}
+          >
+            ← Заказ
+          </button>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight">Редактирование</h1>
+          <p className="text-sm text-muted">
+            {client ? `${client.name}${client.shop ? ` · ${client.shop}` : ""}` : "Клиент удалён"}
+          </p>
+        </div>
+        <OrderEditor
+          orderId={order.id}
+          onClose={() => setEditing(false)}
+          onDone={() => setEditing(false)}
+        />
+      </div>
+    );
+  }
 
   function payNow() {
     const amount = Number(pay.replace(/\s/g, ""));
@@ -44,9 +73,22 @@ function OrderPage() {
       toast("Сумма");
       return;
     }
-    addPayment({ clientId: order!.clientId, amount, orderId: order!.id, note: "Оплата заказа" });
+    const result = addPayment({
+      clientId: order!.clientId,
+      amount,
+      orderId: order!.id,
+      note: "Оплата заказа",
+    });
+    if (!result) {
+      toast("У заказа уже нет долга");
+      return;
+    }
     setPay("");
-    toast("Оплата принята");
+    toast(
+      result.unapplied > 0
+        ? `Принято ${formatSum(result.applied)}. Лишние ${formatSum(result.unapplied)} не записаны.`
+        : `Оплата принята: ${formatSum(result.applied)}`,
+    );
   }
 
   return (
@@ -55,9 +97,15 @@ function OrderPage() {
         <Link to="/orders" className="text-xs text-muted hover:text-fg">
           ← Заказы
         </Link>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight">Заказ {formatDate(order.date)}</h1>
+        <h1 className="mt-2 text-3xl font-semibold tracking-tight">
+          Заказ {formatDate(order.date)}
+        </h1>
         {client ? (
-          <Link to="/clients/$clientId" params={{ clientId: client.id }} className="text-sm text-muted hover:text-fg">
+          <Link
+            to="/clients/$clientId"
+            params={{ clientId: client.id }}
+            className="text-sm text-muted hover:text-fg"
+          >
             {client.name}
             {client.shop ? ` · ${client.shop}` : ""}
           </Link>
@@ -87,14 +135,27 @@ function OrderPage() {
         <Card className="flex flex-col gap-3 p-4 sm:flex-row sm:items-end">
           <div className="flex-1">
             <Label>Оплата по этому заказу</Label>
-            <Input inputMode="numeric" value={pay} onChange={(e) => setPay(e.target.value)} placeholder={String(debt)} />
+            <Input
+              inputMode="numeric"
+              value={pay}
+              onChange={(e) => setPay(e.target.value)}
+              placeholder={String(debt)}
+            />
           </div>
           <Button onClick={payNow}>Принять</Button>
         </Card>
       ) : null}
 
-      {order.note ? (
-        <Card className="p-4 text-sm text-muted">{order.note}</Card>
+      {order.note ? <Card className="p-4 text-sm text-muted">{order.note}</Card> : null}
+
+      {!hasInventoryDetails ? (
+        <Card className="border-warn/30 bg-warn-bg/40 p-4 text-sm">
+          <div className="font-medium text-warn">Исторический заказ без состава по размерам</div>
+          <p className="mt-1 text-muted">
+            Заказ учитывается в продажах, оплатах и долге. Его нельзя отменить или изменить, потому
+            что склад уже зафиксирован отдельной фактической сверкой.
+          </p>
+        </Card>
       ) : null}
 
       {order.items.length > 0 ? (
@@ -103,7 +164,8 @@ function OrderPage() {
           <div className="space-y-1 text-sm">
             {groupItemsByBox(boxes, order.items).map((g) => (
               <div key={g.box}>
-                #{g.box}: {g.items.map((i) => `${colorLabel(i.color)} ${i.size}×${i.qty}`).join(" · ")}
+                #{g.box}:{" "}
+                {g.items.map((i) => `${colorLabel(i.color)} ${i.size}×${i.qty}`).join(" · ")}
               </div>
             ))}
           </div>
@@ -115,7 +177,9 @@ function OrderPage() {
         if (!rows.length) return null;
         return (
           <Card key={c} className="overflow-hidden">
-            <div className="border-b border-border px-4 py-3 text-sm font-medium">{colorLabel(c)}</div>
+            <div className="border-b border-border px-4 py-3 text-sm font-medium">
+              {colorLabel(c)}
+            </div>
             <table className="w-full text-sm">
               <tbody>
                 {rows.map((i) => (
@@ -147,18 +211,43 @@ function OrderPage() {
         </Card>
       ) : null}
 
-      {order.status === "shipped" ? (
-        <Button
-          variant="danger"
-          onClick={() => {
-            if (!confirm("Отменить заказ и вернуть товар на склад?")) return;
-            cancelOrder(order.id);
-            toast("Заказ отменён, товар возвращён");
-            void navigate({ to: "/orders" });
-          }}
-        >
-          Отменить и вернуть на склад
-        </Button>
+      {order.status === "shipped" && hasInventoryDetails ? (
+        <div className="space-y-3">
+          <Button className="w-full" variant="secondary" onClick={() => setEditing(true)}>
+            Редактировать заказ
+          </Button>
+          <Button
+            className="w-full"
+            variant="danger"
+            onClick={() => {
+              const paymentWarning =
+                order.paidSum > 0
+                  ? ` Оплата ${formatSum(order.paidSum)} будет записана как возврат клиенту.`
+                  : "";
+              if (
+                !confirm(
+                  `Отменить заказ и вернуть ${order.totalPairs} пар на склад?${paymentWarning}`,
+                )
+              )
+                return;
+              const result = cancelOrder(order.id);
+              if (!result.ok) {
+                toast(
+                  result.reason === "invalid_history"
+                    ? "Состав старого заказа повреждён. Склад не изменён; сначала сохраните резервную копию."
+                    : "Заказ уже отменён или не найден",
+                );
+                return;
+              }
+              toast(
+                `Заказ отменён: возвращено ${result.returned} пар${result.refunded ? `, возврат ${formatSum(result.refunded)}` : ""}`,
+              );
+              void navigate({ to: "/orders" });
+            }}
+          >
+            Отменить и вернуть на склад
+          </Button>
+        </div>
       ) : null}
     </div>
   );

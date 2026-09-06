@@ -1,4 +1,4 @@
-import type { BoxMap } from "./boxes";
+import type { BoxMap } from "./boxes.ts";
 
 export const SIZES = [14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28] as const;
 export type Size = (typeof SIZES)[number];
@@ -48,6 +48,7 @@ export type Payment = {
   date: string;
   amount: number;
   note: string;
+  allocations?: { orderId: string; amount: number }[];
 };
 
 export type Incoming = {
@@ -57,18 +58,20 @@ export type Incoming = {
   items: { size: number; qty: number }[];
   totalPairs: number;
   note: string;
+  createdAt?: string;
 };
 
 export type JournalEvent = {
   id: string;
   date: string;
-  type: "incoming" | "order" | "payment" | "cancel";
+  type: "incoming" | "order" | "order_edit" | "payment" | "cancel" | "stock_adjustment";
   pairs: number;
   sum: number;
   note: string;
   clientId?: string;
   orderId?: string;
   incomingId?: string;
+  paymentId?: string;
 };
 
 export type Costs = {
@@ -80,7 +83,7 @@ export type Costs = {
   usdRate: number;
 };
 
-export const CASH_KINDS = ["income", "material", "worker", "withdraw", "other"] as const;
+export const CASH_KINDS = ["income", "material", "worker", "withdraw", "other", "refund"] as const;
 export type CashKind = (typeof CASH_KINDS)[number];
 
 export type CashTxn = {
@@ -92,6 +95,7 @@ export type CashTxn = {
   note: string;
   paymentId?: string;
   workerId?: string;
+  locked?: boolean;
   createdAt: string;
 };
 

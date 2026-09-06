@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Group } from "@/components/ui/card";
-import { formatDate, formatNum, formatSum } from "@/lib/format";
+import { formatDate, formatSum } from "@/lib/format";
 import { useWarehouse } from "@/lib/store";
 import { orderDebt } from "@/lib/stats";
 
@@ -88,15 +88,23 @@ function OrdersPage() {
               return (
                 <div key={o.id}>
                   {i > 0 ? <div className="ml-4 h-px bg-border" /> : null}
-                  <Link to="/orders/$orderId" params={{ orderId: o.id }} className="block px-4 py-3.5">
+                  <Link
+                    to="/orders/$orderId"
+                    params={{ orderId: o.id }}
+                    className="block px-4 py-3.5"
+                  >
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <div className="text-sm font-medium">
-                          {client ? `${client.name}${client.shop ? " · " + client.shop : ""}` : "Без клиента"}
+                          {client
+                            ? `${client.name}${client.shop ? " · " + client.shop : ""}`
+                            : "Без клиента"}
                         </div>
                         <div className="mt-0.5 text-xs text-muted">
                           {formatDate(o.date)} · {o.totalPairs} пар
-                          {o.missing.length ? ` · не хватило ${o.missing.reduce((s, i) => s + i.qty, 0)}` : ""}
+                          {o.missing.length
+                            ? ` · не хватило ${o.missing.reduce((s, i) => s + i.qty, 0)}`
+                            : ""}
                         </div>
                       </div>
                       <div className="text-right">

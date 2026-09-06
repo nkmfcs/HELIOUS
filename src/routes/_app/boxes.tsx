@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { ColorPills } from "@/components/color-pills";
 import { Group, SectionLabel } from "@/components/ui/card";
-import { BOX_IDS, boxOf, sizesInBox, type BoxId } from "@/lib/boxes";
+import { BOX_IDS, boxOf, sizesInBox } from "@/lib/boxes";
 import { colorLabel, formatNum } from "@/lib/format";
 import { useWarehouse } from "@/lib/store";
 import { COLORS, SIZES, type Color } from "@/lib/types";
@@ -20,7 +20,9 @@ function BoxesPage() {
     <div className="space-y-7">
       <div>
         <h1 className="text-3xl font-semibold tracking-tight">Коробки</h1>
-        <p className="mt-1 text-sm text-muted">Откуда брать и куда класть. #1 — то, что не вспомнил.</p>
+        <p className="mt-1 text-sm text-muted">
+          Откуда брать и куда класть. #1 — то, что не вспомнил.
+        </p>
       </div>
 
       <div className="space-y-3">

@@ -111,9 +111,7 @@ export function publicAppHost(hostHeader) {
  * app — Envoy rewrites it to `*.vercel.app`.
  */
 export function resolvePublicHost(hostHeader) {
-  return (
-    publicAppHost(process.env?.VITE_PUBLIC_HOSTNAME) || publicAppHost(hostHeader)
-  );
+  return publicAppHost(process.env?.VITE_PUBLIC_HOSTNAME) || publicAppHost(hostHeader);
 }
 
 export function isInstallQuery(url) {
@@ -323,7 +321,10 @@ export function siteHasCustomCard(site = {}) {
  * Otherwise empty — caller emits the og.grok.me placeholder.
  */
 export function resolveOgCardAsset(site = {}, cwd = process.cwd()) {
-  return ogCardPublicPath(cwd) || (detectCustomOgCard(cwd, site) ? String(site.image ?? "").trim() || "/og.jpg" : "");
+  return (
+    ogCardPublicPath(cwd) ||
+    (detectCustomOgCard(cwd, site) ? String(site.image ?? "").trim() || "/og.jpg" : "")
+  );
 }
 
 /** Stamp `card=custom` when public/og.jpg or public/og.png is on disk. */
@@ -401,6 +402,7 @@ function insertBeforeHeadClose(html, snippet) {
 }
 
 export function normalizeHeadContext(ctx = {}) {
+  if (typeof ctx === "string") ctx = { appName: ctx };
   const cwd = ctx.cwd ?? process.cwd();
   // Middleware passes a baked `site`. Still consult the workspace so a
   // public/og.jpg generated after that snapshot (or missed by a wrong cwd)
@@ -422,16 +424,61 @@ export function normalizeHeadContext(ctx = {}) {
   };
 }
 
-export function injectGrokPwaHead(html, ctx = {}) {
+function injectLegacyHead(html, appName, projectId, creator, creatorId) {
+  let next = html;
+  const missing = grokPwaHeadTags(appName)
+    .filter(([key]) => {
+      if (key === "manifest") return !next.includes('href="/__grok/manifest.webmanifest"');
+      if (key === "apple-touch-icon") return !next.includes('href="/__grok/icon-180.png"');
+      return !next.includes(`name="${key}"`);
+    })
+    .map(([, tag]) => tag);
+  if (!next.includes('name="twitter:card"') && !next.includes("name='twitter:card'")) {
+    missing.unshift('<meta name="twitter:card" content="summary_large_image">');
+  }
+  if (!next.includes("/grok-app-builder/extensions.js")) {
+    missing.push(...grokExtensionsHeadTags(projectId));
+  } else if (projectId && !next.includes('name="grok-project-id"')) {
+    missing.push(`<meta name="grok-project-id" content="${escapeHtml(projectId)}">`);
+  }
+  if (
+    projectId &&
+    !next.includes('property="grok:app_id"') &&
+    !next.includes("property='grok:app_id'")
+  ) {
+    missing.push(`<meta property="grok:app_id" content="${escapeHtml(projectId)}">`);
+  }
+  const creatorTags = grokXCreatorHeadTags(creator, creatorId);
+  if (creatorTags.length) {
+    if (
+      !next.includes('property="x:creator" content=') &&
+      !next.includes("property='x:creator' content=")
+    ) {
+      missing.push(creatorTags[0]);
+    }
+    if (!next.includes('property="x:creator:id"')) missing.push(creatorTags[1]);
+  }
+  return missing.length ? insertBeforeHeadClose(next, missing.join("")) : next;
+}
+
+export function injectGrokPwaHead(
+  html,
+  ctx = {},
+  legacyProjectId = "",
+  legacyCreator = "",
+  legacyCreatorId = "",
+) {
   if (typeof html !== "string") return html;
+  // Keep the original public helper signature used by template consumers and
+  // tests. Runtime middleware passes a context object and uses the richer OG
+  // replacement path below.
+  if (arguments.length < 2 || typeof ctx === "string") {
+    const name = typeof ctx === "string" && ctx.trim() ? ctx.trim() : DEFAULT_APP_NAME;
+    return injectLegacyHead(html, name, legacyProjectId, legacyCreator, legacyCreatorId);
+  }
   const { site, projectId, creator, creatorId, host, cwd } = normalizeHeadContext(ctx);
   const documentTitle = titleFromDocument(html);
-  const appName = resolveOgTitle(
-    site,
-    ctx.appName ?? DEFAULT_APP_NAME,
-    host,
-    documentTitle,
-  );
+  const appName = resolveOgTitle(site, ctx.appName ?? DEFAULT_APP_NAME, host, documentTitle);
   let next = stripShareMetaTags(html);
 
   const missing = grokPwaHeadTags(appName)
