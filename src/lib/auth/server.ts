@@ -71,17 +71,26 @@ const env = (key: string): string | undefined => {
 // Explicit off-switch. The deployer sets `VITE_AUTH_ENABLED=true` when it
 // provisions auth; set it to "false" to force auth off everywhere (dev user).
 const authDisabled = env("VITE_AUTH_ENABLED") === "false";
+const socialAuthDisabled = env("GROK_AUTH_ENABLED") === "false";
 
 // Broker federation creds: the deployer injects a per-app client when deployed;
 // otherwise fall back to the shared live-preview client, which the broker accepts
 // for any `*.grok-sandbox.com` callback (see `./preview`).
 const grokIssuer = env("GROK_AUTH_ISSUER") ?? GROK_ISSUER_DEFAULT;
-const grokClientId = env("GROK_AUTH_CLIENT_ID") ?? PREVIEW_CLIENT_ID;
-const grokClientSecret = env("GROK_AUTH_CLIENT_SECRET") ?? PREVIEW_CLIENT_SECRET;
+const grokClientId = socialAuthDisabled
+  ? undefined
+  : (env("GROK_AUTH_CLIENT_ID") ?? PREVIEW_CLIENT_ID);
+const grokClientSecret = socialAuthDisabled
+  ? undefined
+  : (env("GROK_AUTH_CLIENT_SECRET") ?? PREVIEW_CLIENT_SECRET);
 
-/** True when federated sign-in is active (real auth is enforced). */
-export const authConfigured =
+/** True when broker-backed social sign-in is active. */
+export const socialAuthConfigured =
   !authDisabled && Boolean(grokClientId && grokClientSecret);
+
+/** True when at least one real sign-in method is active (auth is enforced). */
+export const authConfigured =
+  !authDisabled && (emailAndPasswordEnabled || socialAuthConfigured);
 
 // This app's own Better Auth origin. When deployed the deployer injects the
 // public URL. In the sandbox live preview there's no fixed URL (each preview gets
@@ -147,7 +156,7 @@ export const SESSION_TOKEN_COOKIE = "__Host-grok-auth.session_token";
 
 // Built separately so the `betterAuth({...})` call stays easy to edit without
 // breaking brackets (models often trip on the conditional plugin spread).
-const grokOAuthPlugin = authConfigured
+const grokOAuthPlugin = socialAuthConfigured
   ? genericOAuth({
       config: GROK_PROVIDERS.map(({ providerId, idp }) => ({
         providerId,

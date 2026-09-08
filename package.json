@@ -3,14 +3,19 @@
   "private": true,
   "sideEffects": false,
   "type": "module",
+  "engines": {
+    "node": ">=22.12"
+  },
   "overrides": {
     "nf3": "0.3.17"
   },
   "scripts": {
     "dev": "vite dev --host 0.0.0.0 --port 8080",
     "build": "vite build && npm run db:migrate",
+    "build:railway": "NITRO_PRESET=node_server vite build && npm run db:migrate",
     "db:migrate": "node scripts/migrate.mjs",
     "build:dev": "vite build --mode development",
+    "start": "node .output/server/index.mjs",
     "preview": "vite preview --host 0.0.0.0 --port 8080",
     "typecheck": "tsc --noEmit",
     "test": "node --test 'scripts/**/*.test.mjs'",

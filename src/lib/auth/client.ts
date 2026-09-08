@@ -21,12 +21,19 @@ export const authClient = createAuthClient({
   },
 });
 
+/** The sign-in methods compiled into this client build. */
+export const emailPasswordEnabled =
+  import.meta.env.VITE_EMAIL_PASSWORD_ENABLED === "true";
+export const socialAuthEnabled =
+  import.meta.env.VITE_GROK_AUTH_ENABLED !== "false";
+
 /**
- * True when sign-in UI should be shown. On by default (preview via the baked
- * preview client, deployed apps via the injected per-app client); set
- * `VITE_AUTH_ENABLED=false` to force it off (dev user — see `use-current-user`).
+ * True when sign-in UI and verified cloud ownership should be active. Social
+ * sign-in remains the preview default; Railway uses email/password instead.
  */
-export const authEnabled = import.meta.env.VITE_AUTH_ENABLED !== "false";
+export const authEnabled =
+  import.meta.env.VITE_AUTH_ENABLED !== "false" &&
+  (emailPasswordEnabled || socialAuthEnabled);
 
 /** The upstream providers to render sign-in buttons for. */
 export { GROK_PROVIDERS };
