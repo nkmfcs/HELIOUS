@@ -1,16 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { SEED } from "./seed";
-import {
-  applyPendingFixes,
-  applyWhiteIncoming0817,
-  payMuzrab0818,
-  reassembleMuzrab0817,
-  renameMamaToSherzod,
-  shipMama0817,
-  shipMuzrab0817,
-  transferDilshodToMurod,
-} from "./migrations";
+import { LEGACY_PRIVATE_DATA_REV, SEED } from "./seed";
 import { ensureBoxes, type BoxId } from "./boxes";
 import {
   COLORS,
@@ -879,30 +869,18 @@ export const useWarehouse = create<Store>()(
     }),
     {
       name: "cheshki_erp_v1",
-      version: 31,
+      version: 32,
       migrate: (persisted, version) => {
-        let s = persisted as WarehouseState;
-        if (!s?.stock?.white) return s;
-        if (version < 2) s = applyWhiteIncoming0817(s);
-        if (version < 3) s = transferDilshodToMurod(s);
-        if (version < 4) s = shipMuzrab0817(s);
-        if (version < 5) s = reassembleMuzrab0817(s);
-        if (version < 6) s = shipMama0817(s);
-        if (version < 7) s = renameMamaToSherzod(s);
-        if (version < 8) s = { ...s, cash: s.cash ?? [], cashOpening: s.cashOpening ?? 0 };
-        if (version < 9)
-          s = {
-            ...s,
-            cash: s.cash ?? [],
-            cashOpening: s.cashOpening ?? 0,
-            dataRev: s.dataRev ?? 0,
-          };
-        if (version < 10) s = payMuzrab0818(s);
-        // Version 30 was already the fully caught-up phone snapshot. Re-running
-        // the old dated migrations while upgrading it could overwrite newer
-        // stock. Only genuinely older stores need that historical catch-up.
-        if (version < 30) s = applyPendingFixes(s);
-        return s;
+        const state = persisted as WarehouseState;
+        if (!state?.stock?.white) return SEED;
+
+        // The first public Railway build accidentally shipped a private dated
+        // snapshot as its browser default. Replace only that exact legacy
+        // snapshot on upgrade; user imports and all other persisted states are
+        // preserved verbatim.
+        if (version < 32 && state.dataRev === LEGACY_PRIVATE_DATA_REV) return SEED;
+
+        return state;
       },
     },
   ),

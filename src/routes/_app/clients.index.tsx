@@ -63,11 +63,11 @@ function ClientsPage() {
         <Group className="space-y-3 p-4">
           <div>
             <Label>Имя</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Мурод" />
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Имя клиента" />
           </div>
           <div>
             <Label>Точка / магазин</Label>
-            <Input value={shop} onChange={(e) => setShop(e.target.value)} placeholder="Динамо" />
+            <Input value={shop} onChange={(e) => setShop(e.target.value)} placeholder="Название точки" />
           </div>
           <div>
             <Label>Телефон</Label>

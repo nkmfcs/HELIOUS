@@ -164,9 +164,11 @@ function Login() {
 
         {!authEnabled ? <p className="text-sm text-muted">Вход отключён.</p> : null}
 
-        <Link to="/" className="block text-center text-sm text-muted hover:text-fg">
-          Открыть без облачной синхронизации
-        </Link>
+        {!authEnabled ? (
+          <Link to="/" className="block text-center text-sm text-muted hover:text-fg">
+            Открыть локальную версию
+          </Link>
+        ) : null}
       </div>
     </main>
   );
