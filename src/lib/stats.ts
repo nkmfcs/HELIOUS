@@ -52,6 +52,12 @@ export function workerPaid(state: WarehouseState, workerId: string): number {
     .reduce((n, t) => n + t.amount, 0);
 }
 
+export function workerAccrued(state: WarehouseState, workerId: string): number {
+  return (state.payables ?? [])
+    .filter((payable) => payable.workerId === workerId)
+    .reduce((total, payable) => total + payable.amount, 0);
+}
+
 export function workerOwed(state: WarehouseState, workerId: string): number {
   return (state.payables ?? [])
     .filter((p) => p.workerId === workerId)

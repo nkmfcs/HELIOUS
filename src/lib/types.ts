@@ -3,7 +3,7 @@ import type { BoxMap } from "./boxes.ts";
 export const SIZES = [14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28] as const;
 export type Size = (typeof SIZES)[number];
 
-export const COLORS = ["white", "black", "gold"] as const;
+export const COLORS = ["white", "black", "gray", "gold"] as const;
 export type Color = (typeof COLORS)[number];
 
 export const PACK = 5;

@@ -2,12 +2,23 @@ import { COLORS, SIZES, type OrderItem, type Stock } from "./types.ts";
 
 export type StockShortage = OrderItem & { have: number };
 
+export function normalizeStock(stock: Partial<Stock> | undefined): Stock {
+  return Object.fromEntries(
+    COLORS.map((color) => {
+      const source = stock?.[color] ?? {};
+      const sizes = Object.fromEntries(
+        SIZES.map((size) => {
+          const value = Number(source[size]);
+          return [size, Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0];
+        }),
+      );
+      return [color, sizes];
+    }),
+  ) as Stock;
+}
+
 function cloneStock(stock: Stock): Stock {
-  return {
-    white: { ...stock.white },
-    black: { ...stock.black },
-    gold: { ...stock.gold },
-  };
+  return Object.fromEntries(COLORS.map((color) => [color, { ...(stock[color] ?? {}) }])) as Stock;
 }
 
 /**

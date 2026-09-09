@@ -22,7 +22,7 @@ export function defaultBoxes(): BoxMap {
   black[17] = 5;
   for (const s of [14, 15, 20, 21, 22, 23, 24, 25, 26, 27]) black[s] = 3;
 
-  return { white, black, gold: fill(1) };
+  return { white, black, gray: fill(1), gold: fill(1) };
 }
 
 export function ensureBoxes(map?: BoxMap | null): BoxMap {

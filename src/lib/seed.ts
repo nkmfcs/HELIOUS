@@ -15,6 +15,7 @@ export const SEED: WarehouseState = {
   stock: {
     white: emptyStock(),
     black: emptyStock(),
+    gray: emptyStock(),
     gold: emptyStock(),
   },
   clients: [],

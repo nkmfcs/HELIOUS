@@ -42,7 +42,9 @@ function Home() {
   const value = warehouseValue(state);
   const pot = revenuePotential(state);
   const cash = cashBalance(state);
-  const recent = [...state.orders].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 4);
+  const recent = [...state.orders]
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, 4);
   const debtors = state.clients
     .map((c) => ({ ...c, debt: clientDebt(state, c.id) }))
     .filter((c) => c.debt > 0)
@@ -59,11 +61,13 @@ function Home() {
         <div className="px-4 pb-4 pt-5">
           <div className="text-4xl font-semibold tabular leading-none">{formatNum(pairs)}</div>
           <div className="mt-1 text-sm text-muted">пар на складе</div>
-          <div className="mt-5 grid grid-cols-3 gap-3">
+          <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
             {COLORS.map((c) => (
               <div key={c}>
                 <div className="text-xs text-subtle">{colorLabel(c)}</div>
-                <div className="mt-0.5 text-lg font-semibold tabular">{formatNum(stockTotal(state.stock[c]))}</div>
+                <div className="mt-0.5 text-lg font-semibold tabular">
+                  {formatNum(stockTotal(state.stock[c]))}
+                </div>
               </div>
             ))}
           </div>
@@ -72,7 +76,11 @@ function Home() {
           <MetricRow label="Долги" value={formatCompact(debt)} tone={debt > 0 ? "danger" : "ok"} />
           <div className="h-px bg-border ml-4" />
           <Link to="/cash">
-            <MetricRow label="На руках" value={formatCompact(cash)} tone={cash < 0 ? "danger" : "ok"} />
+            <MetricRow
+              label="На руках"
+              value={formatCompact(cash)}
+              tone={cash < 0 ? "danger" : "ok"}
+            />
           </Link>
           <div className="h-px bg-border ml-4" />
           <MetricRow label="Себестоимость пары" value={formatNum(cost)} />
@@ -133,7 +141,9 @@ function Home() {
                     <div className="text-xs text-subtle">{c.shop || "без точки"}</div>
                   </div>
                   <div className="flex items-center gap-1">
-                    <span className="text-sm font-semibold text-danger tabular">{formatSum(c.debt)}</span>
+                    <span className="text-sm font-semibold text-danger tabular">
+                      {formatSum(c.debt)}
+                    </span>
                     <ChevronRight className="size-4 text-subtle" />
                   </div>
                 </Link>
@@ -201,8 +211,12 @@ function Home() {
             <Group>
               <div className="flex items-center justify-between px-4 py-3.5">
                 <div>
-                  <div className="text-sm font-medium">{low.length} размеров ниже {state.lowThreshold}</div>
-                  <div className="text-xs text-muted">дошить {formatNum(low.reduce((s, r) => s + r.need, 0))} пар</div>
+                  <div className="text-sm font-medium">
+                    {low.length} размеров ниже {state.lowThreshold}
+                  </div>
+                  <div className="text-xs text-muted">
+                    дошить {formatNum(low.reduce((s, r) => s + r.need, 0))} пар
+                  </div>
                 </div>
                 <ChevronRight className="size-4 text-subtle" />
               </div>

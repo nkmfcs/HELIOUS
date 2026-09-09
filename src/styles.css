@@ -20,6 +20,7 @@
   --color-danger-bg: rgb(192 57 43 / 0.1);
   --color-white-chip: #ffffff;
   --color-black-chip: #111111;
+  --color-gray-chip: #a6a6ab;
   --color-gold-chip: #c4a574;
 
   --radius-xs: 6px;
@@ -32,9 +33,7 @@
   --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
 
   --shadow-soft: 0 0 0 0 transparent;
-  --shadow-float:
-    0 0 0 1px rgb(17 17 17 / 0.06),
-    0 10px 28px rgb(17 17 17 / 0.12);
+  --shadow-float: 0 0 0 1px rgb(17 17 17 / 0.06), 0 10px 28px rgb(17 17 17 / 0.12);
 }
 
 @layer base {

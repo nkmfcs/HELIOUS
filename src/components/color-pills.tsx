@@ -2,13 +2,7 @@ import { COLORS, type Color } from "@/lib/types";
 import { colorLabel } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-export function ColorPills({
-  value,
-  onChange,
-}: {
-  value: Color;
-  onChange: (c: Color) => void;
-}) {
+export function ColorPills({ value, onChange }: { value: Color; onChange: (c: Color) => void }) {
   return (
     <div className="flex gap-1 rounded-lg bg-elevated p-1">
       {COLORS.map((c) => (
@@ -23,7 +17,9 @@ export function ColorPills({
                 ? "bg-white-chip text-fg shadow-soft"
                 : c === "black"
                   ? "bg-black-chip text-on-ink"
-                  : "bg-gold-chip text-fg"
+                  : c === "gray"
+                    ? "bg-gray-chip text-fg"
+                    : "bg-gold-chip text-fg"
               : "text-muted hover:text-fg",
           )}
         >

@@ -1,16 +1,23 @@
-import { SIZES, type Color, type OrderItem } from "./types";
+import { SIZES, type Color, type OrderItem } from "./types.ts";
 
 export type ParseUnit = "pairs" | "packs";
+
+const COLOR_WORDS: ReadonlyArray<[Color, RegExp]> = [
+  ["white", /(?:^|[\s:;,()])(белые|белый|бел|white|ок)(?=$|[\s:;,()])/u],
+  ["black", /(?:^|[\s:;,()])(черные|черный|черн|black|кора)(?=$|[\s:;,()])/u],
+  ["gray", /(?:^|[\s:;,()])(серые|серый|серая|сер|gray|grey)(?=$|[\s:;,()])/u],
+  ["gold", /(?:^|[\s:;,()])(золотые|золотой|золот|gold|голд)(?=$|[\s:;,()])/u],
+];
+
+function colorInLine(line: string): Color | undefined {
+  return COLOR_WORDS.find(([, pattern]) => pattern.test(line))?.[0];
+}
 
 export function parseOrderText(text: string, unit: ParseUnit): OrderItem[] {
   const result: OrderItem[] = [];
   if (!text.trim()) return result;
 
-  const raw = text
-    .replace(/ё/g, "е")
-    .replace(/Ё/g, "Е")
-    .replace(/[–—−]/g, "-")
-    .trim();
+  const raw = text.replace(/ё/g, "е").replace(/Ё/g, "Е").replace(/[–—−]/g, "-").trim();
 
   const lines = raw
     .split(/\n+/)
@@ -25,23 +32,13 @@ export function parseOrderText(text: string, unit: ParseUnit): OrderItem[] {
     if (/\b(пар|всего|итого|сумма)\b/.test(lower) && !/\b(1[4-9]|2[0-8])\b/.test(lower)) {
       continue;
     }
-    if (/^(бел|белый|белые|white|ок)\b/.test(lower) && !/\d/.test(line)) {
-      currentColor = "white";
-      continue;
-    }
-    if (/^(черн|чёрн|черный|черные|black|кора)\b/.test(lower) && !/\d/.test(line)) {
-      currentColor = "black";
-      continue;
-    }
-    if (/^(золот|gold|голд)\b/.test(lower) && !/\d/.test(line)) {
-      currentColor = "gold";
+    const detectedColor = colorInLine(lower);
+    if (detectedColor && !/\d/.test(line)) {
+      currentColor = detectedColor;
       continue;
     }
 
-    let color: Color = currentColor;
-    if (/\b(бел|белый|белые|white|ок)\b/.test(lower)) color = "white";
-    if (/\b(черн|чёрн|черный|черные|black|кора)\b/.test(lower)) color = "black";
-    if (/\b(золот|gold|голд)\b/.test(lower)) color = "gold";
+    const color: Color = detectedColor ?? currentColor;
     currentColor = color;
 
     const match = line.match(/\b(1[4-9]|2[0-8])\b\s*[-:–—/]?\s*(\d+)/);

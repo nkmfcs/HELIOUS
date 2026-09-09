@@ -20,12 +20,14 @@ export function formatCompact(n: number): string {
 export function colorLabel(c: Color): string {
   if (c === "white") return "Белые";
   if (c === "black") return "Чёрные";
+  if (c === "gray") return "Серые";
   return "Золотые";
 }
 
 export function colorShort(c: Color): string {
   if (c === "white") return "Бел";
   if (c === "black") return "Чёр";
+  if (c === "gray") return "Сер";
   return "Зол";
 }
 
@@ -74,11 +76,10 @@ export function emptySizeMap(): Record<number, number> {
 }
 
 export function emptyCart(): Record<Color, Record<number, number>> {
-  return {
-    white: emptySizeMap(),
-    black: emptySizeMap(),
-    gold: emptySizeMap(),
-  };
+  return Object.fromEntries(COLORS.map((color) => [color, emptySizeMap()])) as Record<
+    Color,
+    Record<number, number>
+  >;
 }
 
 export function stockTotal(stock: Record<number, number>): number {

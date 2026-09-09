@@ -21,6 +21,7 @@ import {
   allocateOrder,
   itemTotal,
   normalizeOrderItems,
+  normalizeStock,
   replaceOrderAllocation,
   type StockShortage,
 } from "./inventory";
@@ -118,6 +119,10 @@ type Actions = {
   }) => void;
   payPayable: (id: string, amount?: number, date?: string, note?: string) => void;
   addWorker: (data: { name: string; role?: WorkerRole; phone?: string; note?: string }) => string;
+  updateWorker: (
+    id: string,
+    patch: Partial<{ name: string; role: WorkerRole; phone: string; note: string }>,
+  ) => void;
   payWorker: (workerId: string, amount: number, note?: string, date?: string) => void;
   addWorkerDebt: (workerId: string, amount: number, note?: string, date?: string) => void;
   setCosts: (patch: Partial<Costs>) => void;
@@ -143,7 +148,7 @@ export { cartToItems };
 
 export function snapshotOf(s: WarehouseState): WarehouseState {
   return {
-    stock: s.stock,
+    stock: normalizeStock(s.stock),
     clients: s.clients,
     orders: s.orders,
     payments: s.payments,
@@ -765,6 +770,23 @@ export const useWarehouse = create<Store>()(
         return id;
       },
 
+      updateWorker: (id, patch) => {
+        if (patch.name !== undefined && !patch.name.trim()) return;
+        set((s) => ({
+          workers: (s.workers ?? []).map((worker) =>
+            worker.id === id
+              ? {
+                  ...worker,
+                  ...patch,
+                  name: patch.name?.trim() ?? worker.name,
+                  phone: patch.phone?.trim() ?? worker.phone,
+                  note: patch.note?.trim() ?? worker.note,
+                }
+              : worker,
+          ),
+        }));
+      },
+
       payWorker: (workerId, amount, note = "", date = todayISO()) => {
         const n = Math.round(Math.abs(amount));
         if (!Number.isFinite(n) || n <= 0) return;
@@ -839,7 +861,6 @@ export const useWarehouse = create<Store>()(
         if (
           !d.stock?.white ||
           !d.stock?.black ||
-          !d.stock?.gold ||
           !Array.isArray(d.clients) ||
           !Array.isArray(d.orders)
         )
@@ -848,7 +869,7 @@ export const useWarehouse = create<Store>()(
         // belong to the persisted-store migration below; applying them during
         // import can unexpectedly replace a user's current stock.
         const next: WarehouseState = {
-          stock: d.stock,
+          stock: normalizeStock(d.stock),
           clients: d.clients,
           orders: d.orders,
           payments: d.payments ?? [],
@@ -869,7 +890,7 @@ export const useWarehouse = create<Store>()(
     }),
     {
       name: "cheshki_erp_v1",
-      version: 32,
+      version: 33,
       migrate: (persisted, version) => {
         const state = persisted as WarehouseState;
         if (!state?.stock?.white) return SEED;
@@ -880,6 +901,14 @@ export const useWarehouse = create<Store>()(
         // preserved verbatim.
         if (version < 32 && state.dataRev === LEGACY_PRIVATE_DATA_REV) return SEED;
 
+        if (version < 33) {
+          return {
+            ...state,
+            stock: normalizeStock(state.stock),
+            boxes: ensureBoxes(state.boxes),
+          };
+        }
+
         return state;
       },
     },
@@ -887,11 +916,7 @@ export const useWarehouse = create<Store>()(
 );
 
 export function emptyCart(): Cart {
-  return {
-    white: emptySizeMap(),
-    black: emptySizeMap(),
-    gold: emptySizeMap(),
-  };
+  return Object.fromEntries(COLORS.map((color) => [color, emptySizeMap()])) as Cart;
 }
 
 export { PACK, SELL_PRICE };

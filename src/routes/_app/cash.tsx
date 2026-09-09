@@ -32,6 +32,7 @@ function CashPage() {
   const addCash = useWarehouse((s) => s.addCash);
   const addPayment = useWarehouse((s) => s.addPayment);
   const payPayable = useWarehouse((s) => s.payPayable);
+  const payWorker = useWarehouse((s) => s.payWorker);
   const deleteCash = useWarehouse((s) => s.deleteCash);
   const setCashOpening = useWarehouse((s) => s.setCashOpening);
 
@@ -41,6 +42,7 @@ function CashPage() {
   const [note, setNote] = useState("");
   const [date, setDate] = useState(todayISO());
   const [clientId, setClientId] = useState("");
+  const [workerId, setWorkerId] = useState("");
   const [editOpen, setEditOpen] = useState(false);
   const [opening, setOpening] = useState(String(state.cashOpening || ""));
   const [kill, setKill] = useState<string | null>(null);
@@ -55,6 +57,7 @@ function CashPage() {
   const weOwe = (state.payables ?? [])
     .map((p) => ({ ...p, left: payableLeft(p) }))
     .filter((p) => p.left > 0);
+  const workers = [...(state.workers ?? [])].sort((a, b) => a.name.localeCompare(b.name, "ru"));
 
   function parseAmount(raw: string) {
     return Number(String(raw).replace(/\s/g, "").replace(",", "."));
@@ -66,7 +69,14 @@ function CashPage() {
       toast("Укажи сумму");
       return;
     }
-    if (kind === "income" && clientId) {
+    if (kind === "worker") {
+      if (!workerId) {
+        toast("Выбери работника");
+        return;
+      }
+      payWorker(workerId, n, note, date);
+      toast("Выплата записана в карточку работника");
+    } else if (kind === "income" && clientId) {
       const result = addPayment({ clientId, amount: n, note: note || "Оплата", date });
       if (!result) {
         toast("У клиента уже нет долга");
@@ -276,11 +286,24 @@ function CashPage() {
           {kind === "worker" ? (
             <div>
               <Label>Кто получил</Label>
-              <Input
-                value={person}
-                onChange={(e) => setPerson(e.target.value)}
-                placeholder="Имя работника"
-              />
+              {workers.length > 0 ? (
+                <select
+                  className="h-11 w-full rounded-md border border-border bg-surface px-3 text-sm"
+                  value={workerId}
+                  onChange={(e) => setWorkerId(e.target.value)}
+                >
+                  <option value="">Выбери работника</option>
+                  {workers.map((worker) => (
+                    <option key={worker.id} value={worker.id}>
+                      {worker.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <p className="rounded-md bg-bg px-3 py-2.5 text-sm text-muted">
+                  Сначала добавь человека в разделе «Работники».
+                </p>
+              )}
             </div>
           ) : null}
           <div>

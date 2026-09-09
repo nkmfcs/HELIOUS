@@ -46,7 +46,14 @@ function NewOrderPage() {
 
   const items = useMemo(() => cartToItems(cart), [cart]);
   const checked = useMemo(() => checkAvailability(stock, items), [stock, items]);
-  const pickByBox = useMemo(() => groupItemsByBox(boxes, checked.filter((i) => i.can > 0).map((i) => ({ ...i, qty: i.can }))), [boxes, checked]);
+  const pickByBox = useMemo(
+    () =>
+      groupItemsByBox(
+        boxes,
+        checked.filter((i) => i.can > 0).map((i) => ({ ...i, qty: i.can })),
+      ),
+    [boxes, checked],
+  );
   const can = checked.reduce((s, i) => s + i.can, 0);
   const miss = checked.reduce((s, i) => s + i.miss, 0);
 
@@ -61,11 +68,9 @@ function NewOrderPage() {
       return;
     }
     setCart((prev) => {
-      const next = {
-        white: { ...prev.white },
-        black: { ...prev.black },
-        gold: { ...prev.gold },
-      };
+      const next = Object.fromEntries(
+        COLORS.map((entryColor) => [entryColor, { ...prev[entryColor] }]),
+      ) as typeof prev;
       for (const p of parsed) next[p.color][p.size] = (next[p.color][p.size] ?? 0) + p.qty;
       return next;
     });
@@ -106,7 +111,9 @@ function NewOrderPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-semibold tracking-tight">Новый заказ</h1>
-        <p className="mt-1 text-sm text-muted">Сначала клиент, потом состав. Недостающее уйдёт в предзаказ клиента.</p>
+        <p className="mt-1 text-sm text-muted">
+          Сначала клиент, потом состав. Недостающее уйдёт в предзаказ клиента.
+        </p>
       </div>
 
       <Card className="space-y-3 p-4">
@@ -125,7 +132,11 @@ function NewOrderPage() {
           ))}
         </select>
         <div className="grid grid-cols-2 gap-2">
-          <Input placeholder="Новый клиент" value={newName} onChange={(e) => setNewName(e.target.value)} />
+          <Input
+            placeholder="Новый клиент"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+          />
           <Input placeholder="Точка" value={newShop} onChange={(e) => setNewShop(e.target.value)} />
         </div>
         <Button variant="secondary" size="sm" onClick={createClient}>
@@ -138,20 +149,26 @@ function NewOrderPage() {
         <Textarea
           value={ai}
           onChange={(e) => setAi(e.target.value)}
-          placeholder={"БЕЛЫЕ / ОК\n17 10\n18 10\n\nЧЁРНЫЕ / КОРА\n17 10"}
+          placeholder={"БЕЛЫЕ / ОК\n17 10\n18 10\n\nЧЁРНЫЕ / КОРА\n17 10\n\nСЕРЫЕ\n18 5"}
         />
         <div className="flex gap-2">
           <button
             type="button"
             onClick={() => setUnit("pairs")}
-            className={cn("h-9 flex-1 rounded-sm text-sm", unit === "pairs" ? "bg-elevated" : "text-muted")}
+            className={cn(
+              "h-9 flex-1 rounded-sm text-sm",
+              unit === "pairs" ? "bg-elevated" : "text-muted",
+            )}
           >
             Числа = пары
           </button>
           <button
             type="button"
             onClick={() => setUnit("packs")}
-            className={cn("h-9 flex-1 rounded-sm text-sm", unit === "packs" ? "bg-elevated" : "text-muted")}
+            className={cn(
+              "h-9 flex-1 rounded-sm text-sm",
+              unit === "packs" ? "bg-elevated" : "text-muted",
+            )}
           >
             Числа = упак. ×5
           </button>
@@ -184,10 +201,20 @@ function NewOrderPage() {
                   <td className="px-2 py-2 text-center">
                     <BoxBadge box={boxOf(boxes, color, size)} />
                   </td>
-                  <td className={cn("px-2 py-2 text-center font-mono tabular", have === 0 ? "text-danger" : "text-muted")}>
+                  <td
+                    className={cn(
+                      "px-2 py-2 text-center font-mono tabular",
+                      have === 0 ? "text-danger" : "text-muted",
+                    )}
+                  >
                     {have}
                   </td>
-                  <td className={cn("px-2 py-2 text-center font-mono tabular", qty > 0 ? "text-fg" : "text-subtle")}>
+                  <td
+                    className={cn(
+                      "px-2 py-2 text-center font-mono tabular",
+                      qty > 0 ? "text-fg" : "text-subtle",
+                    )}
+                  >
                     {qty}
                   </td>
                   <td className="px-2 py-1.5 text-right">
@@ -225,7 +252,8 @@ function NewOrderPage() {
               <div className="mb-1 text-xs text-muted">Откуда доставать</div>
               {pickByBox.map((g) => (
                 <div key={g.box} className="py-0.5">
-                  #{g.box}: {g.items.map((i) => `${colorLabel(i.color)} ${i.size}×${i.qty}`).join(" · ")}
+                  #{g.box}:{" "}
+                  {g.items.map((i) => `${colorLabel(i.color)} ${i.size}×${i.qty}`).join(" · ")}
                 </div>
               ))}
             </div>
@@ -240,7 +268,11 @@ function NewOrderPage() {
         </div>
         <div>
           <Label>Заметка</Label>
-          <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="деньги не отдал…" />
+          <Input
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="деньги не отдал…"
+          />
         </div>
       </div>
 
@@ -258,7 +290,9 @@ function NewOrderPage() {
       </Card>
 
       {COLORS.some((c) => Object.values(cart[c]).some((q) => q > 0)) ? (
-        <p className="text-center text-xs text-subtle">Корзина общая по всем цветам — переключайте, не сбрасывается.</p>
+        <p className="text-center text-xs text-subtle">
+          Корзина общая по всем цветам — переключайте, не сбрасывается.
+        </p>
       ) : null}
     </div>
   );
