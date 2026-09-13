@@ -6,7 +6,7 @@ import type { WarehouseState } from "@/lib/types";
 
 const REVISION_KEY = "cheshki_cloud_revision_v2";
 const SYNCED_STATE_KEY = "cheshki_cloud_synced_state_v2";
-const POLL_MS = 5_000;
+const POLL_MS = 30_000;
 
 export type CloudStatus = "idle" | "syncing" | "ok" | "error" | "offline" | "conflict";
 
@@ -198,7 +198,7 @@ async function performSync(run: number): Promise<void> {
     return;
   }
   try {
-    // Quiet polling must not flash “syncing” every five seconds.
+    // Quiet polling must not flash “syncing” every thirty seconds.
     if (!pendingRemote && useCloud.getState().status !== "ok")
       useCloud.setState({ status: "syncing", error: null });
     const loaded = await loadWarehouse();

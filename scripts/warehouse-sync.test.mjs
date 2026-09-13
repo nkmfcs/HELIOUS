@@ -14,6 +14,7 @@ const root = fileURLToPath(new URL("../", import.meta.url));
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const checkpointKey = "cheshki_cloud_synced_state_v2";
 const compiled = new Map();
+const POLL_MS = 30_000;
 
 function jsonb(value) {
   if (Array.isArray(value)) return value.map(jsonb);
@@ -277,16 +278,16 @@ test("two open devices exchange sequential changes through polling without extra
     s.stock.white[18] -= 5;
   });
   await pc.advance(800);
-  await phone.advance(5_000);
+  await phone.advance(POLL_MS);
   assert.deepEqual(phone.state(), pc.state());
   phone.actions().setCosts({ sewing: 4500 });
   await phone.advance(800);
-  await pc.advance(5_000);
+  await pc.advance(POLL_MS);
   assert.deepEqual(phone.state(), pc.state());
   assert.equal(pc.status(), "ok");
   assert.equal(phone.status(), "ok");
   assert.equal(server.writes, 2);
-  await phone.advance(20_000);
+  await phone.advance(POLL_MS * 4);
   assert.equal(server.writes, 2);
 });
 
@@ -316,7 +317,7 @@ test("offline edits survive and save automatically after reconnect", async () =>
   pc.edit((s) => {
     s.stock.white[18] = 35;
   });
-  await pc.advance(10_000);
+  await pc.advance(POLL_MS * 2);
   assert.equal(pc.status(), "offline");
   assert.equal(server.writes, 0);
   pc.navigator.onLine = true;
@@ -343,7 +344,7 @@ test("concurrent edits remain intact and the normal sync button never overwrites
   await phone.advance(800);
   assert.equal(phone.status(), "conflict");
   assert.equal(await phone.sync.saveNow(), false);
-  await phone.advance(10_000);
+  await phone.advance(POLL_MS * 2);
   assert.equal(server.state.stock.white[18], 45);
   assert.equal(phone.state().stock.white[18], 40);
   assert.equal(await phone.sync.resolveCloudConflict("remote"), true);
@@ -411,7 +412,7 @@ test("a lost save response recovers without duplicates or manual conflict resolu
   });
   await pc.advance(800);
   assert.equal(pc.status(), "error");
-  await pc.advance(5_000);
+  await pc.advance(POLL_MS);
   assert.equal(pc.status(), "ok");
   assert.deepEqual(pc.state(), server.state);
   assert.equal(server.writes, 1);
@@ -465,7 +466,7 @@ test("tabs sharing localStorage retain separate in-memory sync baselines", async
     s.stock.white[18] = 45;
   });
   await tab1.advance(800);
-  await tab2.advance(5_000);
+  await tab2.advance(POLL_MS);
   assert.equal(tab2.state().stock.white[18], 45);
   assert.equal(server.state.stock.white[18], 45);
   assert.equal(server.writes, 1);
@@ -476,7 +477,7 @@ test("hydration completes before syncing and unmount removes all triggers", asyn
   const server = makeServer(data);
   const pc = browser(server, { initial: data, baseline: data, hydrated: false });
   const stop = await start(pc);
-  await pc.advance(5_000);
+  await pc.advance(POLL_MS);
   assert.equal(server.reads, 0);
   pc.hydrate();
   await settle();
@@ -486,7 +487,7 @@ test("hydration completes before syncing and unmount removes all triggers", asyn
   pc.window.emit("focus");
   pc.window.emit("online");
   pc.document.emit("visibilitychange");
-  await pc.advance(20_000);
+  await pc.advance(POLL_MS * 4);
   assert.equal(server.reads, reads);
 });
 
@@ -574,7 +575,7 @@ test("overlapping refresh signals during a slow network request are coalesced", 
   pc.window.emit("focus");
   pc.window.emit("pageshow");
   pc.document.emit("visibilitychange");
-  await pc.advance(15_000);
+  await pc.advance(POLL_MS * 3);
   assert.equal(server.reads, reads + 1);
   gate.resolve();
   await settle();
@@ -594,7 +595,29 @@ test("an initial network failure retries automatically and preserves local edits
   pc.edit((s) => {
     s.stock.white[18] = 45;
   });
-  await pc.advance(5_000);
+  await pc.advance(POLL_MS);
   assert.equal(pc.status(), "ok");
   assert.equal(server.state.stock.white[18], 45);
+});
+
+test("periodic reads wait thirty seconds and pause while the page is hidden", async () => {
+  const data = fixture();
+  const server = makeServer(data);
+  const phone = browser(server, { initial: data, baseline: data });
+  await start(phone);
+  const reads = server.reads;
+  await phone.advance(POLL_MS - 1);
+  assert.equal(server.reads, reads);
+  await phone.advance(1);
+  assert.equal(server.reads, reads + 1);
+  phone.document.visibilityState = "hidden";
+  phone.document.emit("visibilitychange");
+  await settle();
+  const hiddenReads = server.reads;
+  await phone.advance(POLL_MS * 4);
+  assert.equal(server.reads, hiddenReads);
+  phone.document.visibilityState = "visible";
+  phone.document.emit("visibilitychange");
+  await settle();
+  assert.equal(server.reads, hiddenReads + 1);
 });
