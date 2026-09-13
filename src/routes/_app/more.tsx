@@ -60,7 +60,7 @@ function MorePage() {
             <div className="text-xs text-muted">
               {cloud.error
                 ? cloud.error
-                : "Телефон и компьютер видят один склад. Нажми, чтобы сохранить сейчас."}
+                : "Изменения сохраняются автоматически. Проверяем облако каждые 30 секунд, пока приложение открыто. Нажмите для проверки сейчас."}
             </div>
           </div>
         </button>
@@ -71,7 +71,7 @@ function MorePage() {
               Ничего не было перезаписано. Сначала сделайте экспорт JSON, затем выберите правильную
               версию.
             </p>
-            <div className="mt-3 grid grid-cols-2 gap-2">
+            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
               <Button
                 variant="secondary"
                 size="sm"
@@ -93,7 +93,7 @@ function MorePage() {
                   );
                 }}
               >
-                Оставить телефон
+                Сохранить это устройство
               </Button>
             </div>
           </div>

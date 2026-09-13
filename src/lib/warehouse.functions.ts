@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { setResponseHeader } from "@tanstack/react-start/server";
 import { getSql } from "@/lib/db";
 import type { WarehouseState } from "@/lib/types";
 import { authMiddleware } from "@/lib/auth/middleware";
@@ -34,6 +35,7 @@ function isWarehouseState(value: unknown): value is WarehouseState {
 export const loadWarehouse = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
+    setResponseHeader("Cache-Control", "private, no-store");
     const sql = await ensureTable();
     const scopedId = `${SNAPSHOT_ID}:${context.userId}`;
 
