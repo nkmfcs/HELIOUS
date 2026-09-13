@@ -57,7 +57,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { isPending } = useCurrentUserState();
   const cloud = useCloud();
   useEffect(() => {
-    startCloudSync();
+    return startCloudSync();
   }, []);
   const pairs = allStockTotal(stock);
 
@@ -120,7 +120,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <main className="pb-32 lg:ml-60 lg:pb-10">
-        <div className="mx-auto max-w-4xl px-4 pt-5 pb-4 lg:px-8 lg:pt-8 lg:pb-8">{children}</div>
+        <div className="mx-auto max-w-4xl px-4 pt-5 pb-4 lg:px-8 lg:pt-8 lg:pb-8">
+          {cloud.status === "conflict" || cloud.status === "error" || cloud.status === "offline" ? (
+            <Link
+              to="/more"
+              role="status"
+              className="mb-4 block rounded-md border border-border bg-surface px-4 py-3 text-sm text-danger"
+            >
+              {cloudLabel(cloud.status)} · Подробнее
+            </Link>
+          ) : null}
+          {children}
+        </div>
       </main>
 
       <nav className="pointer-events-none fixed inset-x-0 bottom-0 z-30 px-4 tab-dock lg:hidden">
