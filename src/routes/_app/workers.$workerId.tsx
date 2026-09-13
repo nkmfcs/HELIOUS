@@ -14,10 +14,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, Group, SectionLabel, Stat } from "@/components/ui/card";
 import { Input, Label, Textarea } from "@/components/ui/input";
+import { WorkerAccrualEditor } from "@/components/worker-accrual-editor";
 import { formatCompact, formatDate, formatNum, todayISO } from "@/lib/format";
 import { useWarehouse } from "@/lib/store";
 import { payableLeft, workerAccrued, workerOwed, workerPaid } from "@/lib/stats";
-import { WORKER_ROLES, type WorkerRole, workerRoleLabel } from "@/lib/types";
+import { WORKER_ROLES, type Payable, type WorkerRole, workerRoleLabel } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_app/workers/$workerId")({ component: WorkerPage });
@@ -45,6 +46,7 @@ function WorkerPage() {
   const [editRole, setEditRole] = useState<WorkerRole>(worker?.role ?? "other");
   const [editPhone, setEditPhone] = useState(worker?.phone ?? "");
   const [editNote, setEditNote] = useState(worker?.note ?? "");
+  const [editingAccrual, setEditingAccrual] = useState<Payable | null>(null);
 
   if (!worker) {
     return (
@@ -348,7 +350,9 @@ function WorkerPage() {
                   {index > 0 ? <div className="ml-4 h-px bg-border" /> : null}
                   <div className="flex items-center gap-3 px-4 py-3.5">
                     <div className="min-w-0 flex-1">
-                      <div className="text-sm font-medium">{entry.note || "Работа"}</div>
+                      <div className="break-words text-sm font-medium">
+                        {entry.note || "Работа"}
+                      </div>
                       <div className="mt-0.5 flex items-center gap-1 text-xs text-muted">
                         <CalendarDays className="size-3" /> {formatDate(entry.date)}
                       </div>
@@ -356,6 +360,17 @@ function WorkerPage() {
                     </div>
                     <Button
                       size="sm"
+                      variant="secondary"
+                      aria-label={`Редактировать начисление: ${entry.note || formatNum(entry.amount)}`}
+                      onClick={() =>
+                        setEditingAccrual(editingAccrual?.id === entry.id ? null : { ...entry })
+                      }
+                    >
+                      <Pencil className="size-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      disabled={editingAccrual?.id === entry.id}
                       onClick={() => {
                         if (!confirm(`Выплатить ${formatNum(left)} и закрыть начисление?`)) return;
                         payPayable(entry.id, undefined, todayISO(), "Закрыл начисление");
@@ -365,6 +380,13 @@ function WorkerPage() {
                       Закрыть
                     </Button>
                   </div>
+                  {editingAccrual?.id === entry.id ? (
+                    <WorkerAccrualEditor
+                      key={editingAccrual.id}
+                      entry={editingAccrual}
+                      onClose={() => setEditingAccrual(null)}
+                    />
+                  ) : null}
                 </div>
               );
             })}

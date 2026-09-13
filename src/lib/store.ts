@@ -11,6 +11,7 @@ import {
   type Costs,
   type CashKind,
   type OrderItem,
+  type Payable,
   type WarehouseState,
   type WorkerRole,
 } from "./types";
@@ -118,6 +119,11 @@ type Actions = {
     workerId?: string;
   }) => void;
   payPayable: (id: string, amount?: number, date?: string, note?: string) => void;
+  updateWorkerAccrual: (
+    id: string,
+    patch: Pick<Payable, "amount" | "date" | "note">,
+    expected: Payable,
+  ) => string | null;
   addWorker: (data: { name: string; role?: WorkerRole; phone?: string; note?: string }) => string;
   updateWorker: (
     id: string,
@@ -720,6 +726,37 @@ export const useWarehouse = create<Store>()(
             },
           ],
         }));
+      },
+
+      updateWorkerAccrual: (id, patch, expected) => {
+        const row = (get().payables ?? []).find((entry) => entry.id === id);
+        if (!row || !row.workerId) return "Начисление работника не найдено";
+        if (row.amount <= row.paidSum) return "Начисление уже закрыто";
+        if (
+          (["id", "workerId", "person", "amount", "paidSum", "date", "note"] as const).some(
+            (key) => row[key] !== expected[key],
+          )
+        )
+          return "Начисление изменилось. Закройте форму и откройте редактирование заново.";
+        if (!Number.isSafeInteger(patch.amount) || patch.amount <= 0)
+          return "Укажите положительную целую сумму начисления";
+        if (patch.amount < row.paidSum)
+          return "Сумма начисления не может быть меньше уже выплаченной";
+        const date = new Date(`${patch.date}T00:00:00Z`);
+        if (
+          !/^\d{4}-\d{2}-\d{2}$/.test(patch.date) ||
+          Number.isNaN(date.getTime()) ||
+          date.toISOString().slice(0, 10) !== patch.date
+        )
+          return "Укажите корректную дату начисления";
+        set((s) => ({
+          payables: (s.payables ?? []).map((entry) =>
+            entry.id === id
+              ? { ...entry, amount: patch.amount, date: patch.date, note: patch.note.trim() }
+              : entry,
+          ),
+        }));
+        return null;
       },
 
       payPayable: (id, amount, date = todayISO(), note = "") => {

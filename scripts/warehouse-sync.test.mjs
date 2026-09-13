@@ -621,3 +621,159 @@ test("periodic reads wait thirty seconds and pause while the page is hidden", as
   await settle();
   assert.equal(server.reads, hiddenReads + 1);
 });
+
+function accrualDevice() {
+  const data = fixture();
+  data.workers = [
+    {
+      id: "worker-test",
+      name: "Test worker",
+      role: "cutting",
+      phone: "",
+      note: "",
+      createdAt: "2026-09-01T10:00:00Z",
+    },
+  ];
+  data.payables = [
+    {
+      id: "accrual-test",
+      workerId: "worker-test",
+      person: "Test worker",
+      amount: 350000,
+      paidSum: 100000,
+      note: "Cutting",
+      date: "2026-09-13",
+    },
+  ];
+  data.cash = [
+    {
+      id: "cash-test",
+      kind: "worker",
+      workerId: "worker-test",
+      amount: 100000,
+      person: "Test worker",
+      note: "Advance",
+      date: "2026-09-13",
+      createdAt: "2026-09-13T10:00:00Z",
+    },
+  ];
+  return browser(makeServer(data), { initial: data, baseline: data });
+}
+
+test("editing an open accrual preserves payments and changes only its amount, date and note", () => {
+  const device = accrualDevice();
+  const before = device.state();
+  const row = before.payables[0];
+  assert.equal(
+    device
+      .actions()
+      .updateWorkerAccrual(
+        row.id,
+        { amount: 250000, date: "2026-09-12", note: "  100 pairs  " },
+        row,
+      ),
+    null,
+  );
+  const after = device.state();
+  assert.deepEqual(after.payables[0], {
+    ...row,
+    amount: 250000,
+    date: "2026-09-12",
+    note: "100 pairs",
+  });
+  assert.equal(after.payables[0].amount - after.payables[0].paidSum, 150000);
+  assert.deepEqual({ ...after, payables: before.payables }, before);
+});
+
+test("invalid amounts and dates cannot change an accrual or cash", () => {
+  const device = accrualDevice();
+  const before = device.state();
+  const row = before.payables[0];
+  for (const amount of [0, -1, 99999, 100000.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
+    assert.equal(
+      typeof device
+        .actions()
+        .updateWorkerAccrual(row.id, { amount, date: row.date, note: row.note }, row),
+      "string",
+    );
+    assert.deepEqual(device.state(), before);
+  }
+  for (const date of ["", "2026-02-30", "2026-13-01", "14.09.2026"]) {
+    assert.equal(
+      typeof device
+        .actions()
+        .updateWorkerAccrual(row.id, { amount: 200000, date, note: row.note }, row),
+      "string",
+    );
+    assert.deepEqual(device.state(), before);
+  }
+});
+
+test("reducing an accrual to its paid amount closes it without creating a new payment", () => {
+  const device = accrualDevice();
+  const before = device.state();
+  const row = before.payables[0];
+  assert.equal(
+    device
+      .actions()
+      .updateWorkerAccrual(row.id, { amount: row.paidSum, date: row.date, note: row.note }, row),
+    null,
+  );
+  const after = device.state();
+  assert.equal(after.payables[0].amount - after.payables[0].paidSum, 0);
+  assert.deepEqual(after.cash, before.cash);
+  assert.equal(
+    typeof device
+      .actions()
+      .updateWorkerAccrual(
+        row.id,
+        { amount: 400000, date: row.date, note: row.note },
+        after.payables[0],
+      ),
+    "string",
+  );
+});
+
+test("a payment or remote edit made after opening the editor rejects the stale draft", () => {
+  for (const change of [
+    (device) => device.actions().payPayable("accrual-test", 50000),
+    (device) =>
+      device.edit((state) => {
+        state.payables[0].note = "Updated elsewhere";
+      }),
+  ]) {
+    const device = accrualDevice();
+    const row = device.state().payables[0];
+    change(device);
+    const changed = device.state();
+    assert.equal(
+      typeof device
+        .actions()
+        .updateWorkerAccrual(row.id, { amount: 200000, date: row.date, note: row.note }, row),
+      "string",
+    );
+    assert.deepEqual(device.state(), changed);
+  }
+});
+
+test("edited accruals and unchanged cash sync to another device automatically", async () => {
+  const source = accrualDevice();
+  const data = source.state();
+  const server = makeServer(data);
+  const pc = browser(server, { initial: data, baseline: data });
+  const phone = browser(server, { initial: data, baseline: data });
+  await start(pc);
+  await start(phone);
+  const row = pc.state().payables[0];
+  assert.equal(
+    pc
+      .actions()
+      .updateWorkerAccrual(row.id, { amount: 280000, date: row.date, note: "Updated work" }, row),
+    null,
+  );
+  await pc.advance(800);
+  await phone.advance(POLL_MS);
+  assert.deepEqual(phone.state(), pc.state());
+  assert.equal(phone.state().payables[0].amount, 280000);
+  assert.deepEqual(phone.state().cash, data.cash);
+});
