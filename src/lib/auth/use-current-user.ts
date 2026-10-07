@@ -1,23 +1,20 @@
 import { authClient, authEnabled } from "./client";
 
-/** Normalized user shape used across the app, auth on or off. */
-export type AppUser = {
+/** Единый вид пользователя в приложении — с авторизацией и без неё. */
+type AppUser = {
   id: string;
   displayName: string | null;
   primaryEmail: string | null;
   profileImageUrl: string | null;
-  /** True when this is the sandbox/dev fallback (auth not configured). */
+  /** True для dev-пользователя (авторизация выключена). */
   isDevFallback: boolean;
 };
 
 /**
- * Stable fallback user, used ONLY when auth is explicitly disabled
- * (`VITE_AUTH_ENABLED=false`). By default auth is on — the sandbox live preview
- * does real sign-in via the baked preview client. Its id is
- * `"dev-user"` — the SAME id `verify.server.ts` returns server-side — so per-user
- * rows written in that mode belong to one consistent owner.
+ * Запасной пользователь, только при `VITE_AUTH_ENABLED=false`. Его id совпадает
+ * с тем, что возвращает `verify.server.ts`, поэтому данные принадлежат одному владельцу.
  */
-export const DEV_USER: AppUser = {
+const DEV_USER: AppUser = {
   id: "dev-user",
   displayName: "Dev User",
   primaryEmail: "dev@example.com",
@@ -25,34 +22,26 @@ export const DEV_USER: AppUser = {
   isDevFallback: true,
 };
 
-/** `useCurrentUserState()` result: the user plus the session-loading flag. */
-export type CurrentUserState = {
-  /** The user — `null` BOTH while the session loads and when signed out. */
+type CurrentUserState = {
+  /** Пользователь; `null` и пока сессия загружается, и когда вход не выполнен. */
   user: AppUser | null;
-  /** True while the session is still resolving — don't treat `user: null` as signed out yet. */
+  /** True, пока сессия определяется — `user: null` ещё не значит «не вошёл». */
   isPending: boolean;
 };
 
 /**
- * Current user + loading state. Same behavior in live preview and when deployed:
- *   - Auth enabled (default) -> the real signed-in user; `user` is `null` while
- *                            the session resolves (`isPending: true`) and when
- *                            signed out (`isPending: false`). Session comes from
- *                            Better Auth `useSession()` → `/api/auth/get-session`
- *                            (cookie when deployed; bearer in live preview).
- *   - Auth disabled (`VITE_AUTH_ENABLED=false`) -> `DEV_USER`, never pending.
+ * Текущий пользователь и состояние загрузки.
+ *   - Авторизация включена -> настоящий пользователь из Better Auth `useSession()`.
+ *   - Выключена (`VITE_AUTH_ENABLED=false`) -> `DEV_USER`, без ожидания.
  *
- * Protect a route by waiting out `isPending` before acting on `user` —
- * redirecting on `user: null` alone bounces signed-in visitors to sign-in on
- * every hard reload:
+ * Защищая маршрут, дождитесь `isPending`: редирект по одному `user: null`
+ * выкидывает вошедшего пользователя на экран входа при каждой перезагрузке.
  *
- *   import { RedirectToSignIn } from "@/lib/auth/gates";
  *   const { user, isPending } = useCurrentUserState();
- *   if (isPending) return null;              // still resolving — don't redirect yet
- *   if (!user) return <RedirectToSignIn />;  // definitely signed out
+ *   if (isPending) return null;
+ *   if (!user) return <RedirectToSignIn />;
  *
- * `authEnabled` is a module-level constant fixed at load, so the guarded hook
- * call keeps a stable hook order across every render of a given component.
+ * `authEnabled` — константа модуля, поэтому порядок хуков стабилен.
  */
 export function useCurrentUserState(): CurrentUserState {
   if (!authEnabled) return { user: DEV_USER, isPending: false };
@@ -73,9 +62,8 @@ export function useCurrentUserState(): CurrentUserState {
 }
 
 /**
- * Convenience view of `useCurrentUserState().user` for display (e.g.
- * `user?.displayName ?? "Guest"`). NOTE: `null` means *loading OR signed out* —
- * for redirects/guards use `useCurrentUserState()` and check `isPending`.
+ * Пользователь для отображения. `null` значит «загрузка или не вошёл»; для
+ * редиректов используйте `useCurrentUserState()`.
  */
 export function useCurrentUser(): AppUser | null {
   return useCurrentUserState().user;

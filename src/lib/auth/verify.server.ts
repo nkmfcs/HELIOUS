@@ -2,36 +2,35 @@ import { getRequest } from "@tanstack/react-start/server";
 import { auth, authConfigured } from "./server";
 
 /**
- * Server-side session resolution (server-only).
+ * Определение пользователя на сервере (только сервер).
  *
- * Because this app runs its OWN Better Auth at same-origin `/api/auth/*`, the
- * session cookie is sent with every request to this app — server functions AND
- * SSR loaders included. So we resolve the user straight from the request cookies
- * via `auth.api.getSession` (no client-minted JWT needed). Never trust a
- * client-supplied user id — only the result of this verification.
+ * Better Auth работает на `/api/auth/*` этого же приложения, поэтому сессионная
+ * cookie приходит с каждым запросом — и в серверные функции, и в SSR. Пользователь
+ * определяется по cookie через `auth.api.getSession`. Id пользователя от клиента
+ * никогда не принимается на веру.
  */
 
-/** True when a real database is configured server-side. */
+/** True, когда сервер подключён к реальной базе данных. */
 const databaseConfigured = Boolean(process.env.DATABASE_URL?.trim());
 
-/** Re-export so callers can branch on it without importing `server.ts`. */
+/** Повторный экспорт, чтобы не импортировать `server.ts` ради одного флага. */
 export { authConfigured };
 
 if (databaseConfigured && !authConfigured) {
   console.error(
-    "[auth] DATABASE_URL is set but auth is disabled (VITE_AUTH_ENABLED=false) " +
-      "— requireUserId() will reject every request (fail closed) rather than " +
-      "share one dev user on a real database.",
+    "[auth] DATABASE_URL задан, но авторизация выключена (VITE_AUTH_ENABLED=false " +
+      "или не включён вход по email/паролю) — requireUserId() будет отклонять все " +
+      "запросы, а не отдавать одного dev-пользователя на реальной базе.",
   );
 }
 
-/** Dev fallback user id, used only when auth is disabled (VITE_AUTH_ENABLED=false). */
-export const DEV_USER_ID = "dev-user";
+/** Id dev-пользователя; используется только при выключенной авторизации. */
+const DEV_USER_ID = "dev-user";
 
 /**
- * Thrown by `requireUserId` when the caller has no valid session. Carries
- * `status: 401`; the message is a stable contract — match
- * `err.message === "Unauthorized"` client-side to send the visitor to sign-in.
+ * Бросается из `requireUserId`, когда у запроса нет действующей сессии.
+ * Несёт `status: 401`; текст "Unauthorized" — стабильный контракт, по нему
+ * клиент отправляет пользователя на экран входа.
  */
 export class UnauthorizedError extends Error {
   readonly status = 401;
@@ -41,56 +40,35 @@ export class UnauthorizedError extends Error {
   }
 }
 
-export type VerifiedUser = { id: string; email: string | null };
-
-/**
- * Resolve the signed-in user from the current request, or `null` when auth isn't
- * configured / nobody is signed in. Safe to call from server functions and SSR
- * loaders.
- *
- * `bearerToken` is for the LIVE PREVIEW: the app runs in a partitioned iframe
- * whose cookies don't reach the server, so `authMiddleware` forwards the session
- * as a bearer token, which we present as `Authorization: Bearer …` (the `bearer`
- * plugin resolves it). When deployed no token is passed and the cookie is used.
- */
-export async function getSessionUser(
-  bearerToken?: string,
-): Promise<VerifiedUser | null> {
+/** Вошедший пользователь текущего запроса или `null`. */
+async function getSessionUser(): Promise<{ id: string; email: string | null } | null> {
   if (!authConfigured) return null;
   const request = getRequest();
   if (!request) return null;
-  let headers = request.headers;
-  if (bearerToken) {
-    headers = new Headers(request.headers);
-    headers.set("Authorization", `Bearer ${bearerToken}`);
-  }
-  const session = await auth.api.getSession({ headers });
+  const session = await auth.api.getSession({ headers: request.headers });
   if (!session?.user) return null;
   return { id: session.user.id, email: session.user.email ?? null };
 }
 
 /**
- * Resolve the current user id for a server function, or throw when unauthorized.
- * Prefer `authMiddleware` (`./middleware`), which calls this for you.
- * - Auth enabled (default) -> the verified session user id; throws
- *   `UnauthorizedError` when signed out. Works in the sandbox preview too (real
- *   sign-in via the baked preview client).
- * - Auth disabled (`VITE_AUTH_ENABLED=false`) + `DATABASE_URL` set -> throw (fail
- *   closed): one shared dev user on a real database would let every visitor
- *   read/write everyone's rows.
- * - Auth disabled + no database -> the shared dev user id.
+ * Id пользователя для серверной функции или ошибка, если доступа нет.
+ * Лучше использовать `authMiddleware` (`./middleware`) — он вызывает это сам.
+ * - Авторизация включена -> id вошедшего пользователя, иначе `UnauthorizedError`.
+ * - Выключена + задан `DATABASE_URL` -> ошибка (fail closed): общий dev-пользователь
+ *   на реальной базе дал бы каждому посетителю доступ к чужим данным.
+ * - Выключена + нет базы -> dev-пользователь.
  */
-export async function requireUserId(bearerToken?: string): Promise<string> {
+export async function requireUserId(): Promise<string> {
   if (!authConfigured) {
     if (databaseConfigured) {
       throw new Error(
-        "Auth is disabled (VITE_AUTH_ENABLED=false) but DATABASE_URL is set — " +
-          "refusing to fall back to the shared dev user against a real database.",
+        "Авторизация выключена, но задан DATABASE_URL — отказ работать от общего " +
+          "dev-пользователя на реальной базе данных.",
       );
     }
     return DEV_USER_ID;
   }
-  const user = await getSessionUser(bearerToken);
+  const user = await getSessionUser();
   if (!user) throw new UnauthorizedError();
   return user.id;
 }

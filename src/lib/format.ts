@@ -1,4 +1,4 @@
-import { COLORS, type Color } from "./types.ts";
+import { COLORS, SIZES, type Color } from "./types.ts";
 
 export function formatNum(n: number): string {
   return new Intl.NumberFormat("ru-RU").format(Math.round(n || 0));
@@ -22,13 +22,6 @@ export function colorLabel(c: Color): string {
   if (c === "black") return "Чёрные";
   if (c === "gray") return "Серые";
   return "Золотые";
-}
-
-export function colorShort(c: Color): string {
-  if (c === "white") return "Бел";
-  if (c === "black") return "Чёр";
-  if (c === "gray") return "Сер";
-  return "Зол";
 }
 
 export function formatDate(iso: string): string {
@@ -71,7 +64,7 @@ export function monthLabel(key: string): string {
 
 export function emptySizeMap(): Record<number, number> {
   const o: Record<number, number> = {};
-  for (let s = 14; s <= 28; s++) o[s] = 0;
+  for (const size of SIZES) o[size] = 0;
   return o;
 }
 

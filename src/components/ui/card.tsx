@@ -1,22 +1,10 @@
 import { cn } from "@/lib/utils";
 
-export function Card({
-  className,
-  children,
-}: {
-  className?: string;
-  children: React.ReactNode;
-}) {
+export function Card({ className, children }: { className?: string; children: React.ReactNode }) {
   return <div className={cn("rounded-lg bg-surface", className)}>{children}</div>;
 }
 
-export function Group({
-  className,
-  children,
-}: {
-  className?: string;
-  children: React.ReactNode;
-}) {
+export function Group({ className, children }: { className?: string; children: React.ReactNode }) {
   return <div className={cn("overflow-hidden rounded-lg bg-surface", className)}>{children}</div>;
 }
 

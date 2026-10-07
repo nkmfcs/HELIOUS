@@ -38,4 +38,5 @@ export const SEED: WarehouseState = {
   boxes: defaultBoxes(),
   payables: [],
   workers: [],
+  productionBatches: [],
 };

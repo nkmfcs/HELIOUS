@@ -52,22 +52,36 @@ function ClientsPage() {
       <div className="flex items-end justify-between">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Клиенты</h1>
-          <p className="mt-1 text-sm text-muted">{state.clients.length} в базе · отдельно от заказов</p>
+          <p className="mt-1 text-sm text-muted">
+            {state.clients.length} в базе · отдельно от заказов
+          </p>
         </div>
         <Button onClick={() => setOpen((v) => !v)}>Добавить</Button>
       </div>
 
-      <Input placeholder="Поиск по имени, точке, телефону" value={q} onChange={(e) => setQ(e.target.value)} />
+      <Input
+        placeholder="Поиск по имени, точке, телефону"
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+      />
 
       {open ? (
         <Group className="space-y-3 p-4">
           <div>
             <Label>Имя</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Имя клиента" />
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Имя клиента"
+            />
           </div>
           <div>
             <Label>Точка / магазин</Label>
-            <Input value={shop} onChange={(e) => setShop(e.target.value)} placeholder="Название точки" />
+            <Input
+              value={shop}
+              onChange={(e) => setShop(e.target.value)}
+              placeholder="Название точки"
+            />
           </div>
           <div>
             <Label>Телефон</Label>
@@ -89,7 +103,11 @@ function ClientsPage() {
             {list.map((c, i) => (
               <div key={c.id}>
                 {i > 0 ? <div className="ml-4 h-px bg-border" /> : null}
-                <Link to="/clients/$clientId" params={{ clientId: c.id }} className="flex items-center justify-between px-4 py-3.5">
+                <Link
+                  to="/clients/$clientId"
+                  params={{ clientId: c.id }}
+                  className="flex items-center justify-between px-4 py-3.5"
+                >
                   <div>
                     <div className="text-sm font-medium">
                       {c.name}

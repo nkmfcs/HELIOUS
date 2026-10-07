@@ -66,15 +66,3 @@ export function groupItemsByBox<T extends { color: Color; size: number }>(
     (g) => g.items.length > 0,
   );
 }
-
-export function moveWhite1719ToBox1<T extends { boxes?: BoxMap | null }>(s: T): T {
-  const boxes = ensureBoxes(s.boxes);
-  let changed = false;
-  for (const size of [17, 18, 19]) {
-    if (boxes.white[size] === 4) {
-      boxes.white[size] = 1;
-      changed = true;
-    }
-  }
-  return changed ? { ...s, boxes } : { ...s, boxes };
-}

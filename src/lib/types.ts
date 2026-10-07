@@ -61,6 +61,27 @@ export type Incoming = {
   createdAt?: string;
 };
 
+export type ProductionStage = "cutting" | "sewing" | "packaging" | "done" | "cancelled";
+
+export type ProductionHistoryEntry = {
+  stage: ProductionStage;
+  at: string;
+  workerId?: string;
+};
+
+export type ProductionBatch = {
+  id: string;
+  items: OrderItem[];
+  stage: ProductionStage;
+  createdAt: string;
+  updatedAt: string;
+  note: string;
+  history: ProductionHistoryEntry[];
+  cuttingWorkerId?: string;
+  sewingWorkerId?: string;
+  packagingWorkerId?: string;
+};
+
 export type JournalEvent = {
   id: string;
   date: string;
@@ -143,4 +164,5 @@ export type WarehouseState = {
   boxes: BoxMap;
   payables: Payable[];
   workers: Worker[];
+  productionBatches: ProductionBatch[];
 };

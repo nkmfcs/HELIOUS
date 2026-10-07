@@ -14,8 +14,17 @@ import {
   type Payable,
   type WarehouseState,
   type WorkerRole,
+  type ProductionBatch,
+  type ProductionStage,
 } from "./types";
 import { colorLabel, emptySizeMap, todayISO, uid } from "./format";
+import {
+  itemMap,
+  normalizeProductionBatches,
+  productionQtyFor,
+  isActiveProductionStage,
+  productionStageRole,
+} from "./production";
 import { orderDebt } from "./stats";
 import {
   addItemsToStock,
@@ -134,6 +143,13 @@ type Actions = {
   setCosts: (patch: Partial<Costs>) => void;
   setLowThreshold: (n: number) => void;
   setBox: (color: Color, size: number, box: BoxId) => void;
+  createProductionBatch: (input: { items: OrderItem[]; note?: string }) => string | null;
+  advanceProductionBatch: (input: {
+    batchId: string;
+    nextStage?: ProductionStage;
+    workerId?: string;
+  }) => boolean;
+  cancelProductionBatch: (batchId: string) => boolean;
   importState: (raw: unknown) => boolean;
 };
 
@@ -142,7 +158,7 @@ export type Store = WarehouseState & Actions;
 function cartToItems(cart: Cart): OrderItem[] {
   const items: OrderItem[] = [];
   for (const color of COLORS) {
-    for (let size = 14; size <= 28; size++) {
+    for (const size of SIZES) {
       const qty = cart[color][size] ?? 0;
       if (qty > 0) items.push({ color, size, qty });
     }
@@ -168,6 +184,7 @@ export function snapshotOf(s: WarehouseState): WarehouseState {
     boxes: ensureBoxes(s.boxes),
     payables: s.payables ?? [],
     workers: s.workers ?? [],
+    productionBatches: s.productionBatches ?? [],
   };
 }
 
@@ -892,6 +909,152 @@ export const useWarehouse = create<Store>()(
             [color]: { ...ensureBoxes(s.boxes)[color], [size]: box },
           },
         })),
+
+      createProductionBatch: ({ items, note = "" }) => {
+        const requested = itemMap(items);
+        if (!requested.size) return null;
+        const state = get();
+        const normalized: OrderItem[] = [];
+        for (const [key, requestedQty] of requested.entries()) {
+          const [color, sizeText] = key.split(":");
+          const size = Number(sizeText);
+          const stock = state.stock[color as (typeof COLORS)[number]]?.[size] ?? 0;
+          const inProduction = productionQtyFor(
+            state.productionBatches,
+            color as (typeof COLORS)[number],
+            size,
+          );
+          const remainingNeed = Math.max(0, state.lowThreshold - stock - inProduction);
+          const qty = Math.min(requestedQty, remainingNeed);
+          if (qty > 0) normalized.push({ color: color as (typeof COLORS)[number], size, qty });
+        }
+        if (!normalized.length) return null;
+
+        const now = new Date().toISOString();
+        const id = uid("prod");
+        const batch: ProductionBatch = {
+          id,
+          items: normalized,
+          stage: "cutting",
+          createdAt: now,
+          updatedAt: now,
+          note: note.trim(),
+          history: [{ stage: "cutting", at: now }],
+        };
+        set((s) => ({ productionBatches: [...(s.productionBatches ?? []), batch] }));
+        return id;
+      },
+
+      advanceProductionBatch: ({ batchId, nextStage, workerId }) => {
+        const state = get();
+        const batch = state.productionBatches.find((entry) => entry.id === batchId);
+        if (!batch || !isActiveProductionStage(batch.stage)) return false;
+        const expected: Record<ProductionStage, ProductionStage> = {
+          cutting: "sewing",
+          sewing: "packaging",
+          packaging: "done",
+          done: "done",
+          cancelled: "cancelled",
+        };
+        const target = nextStage ?? expected[batch.stage];
+        if (target !== expected[batch.stage]) return false;
+        if (workerId) {
+          const worker = state.workers.find((entry) => entry.id === workerId);
+          if (!worker || worker.role !== productionStageRole(batch.stage)) return false;
+        }
+
+        const now = new Date().toISOString();
+        const updated: ProductionBatch = {
+          ...batch,
+          stage: target,
+          updatedAt: now,
+          history: [...batch.history, { stage: target, at: now, workerId }],
+          ...(batch.stage === "cutting"
+            ? { cuttingWorkerId: workerId ?? batch.cuttingWorkerId }
+            : {}),
+          ...(batch.stage === "sewing" ? { sewingWorkerId: workerId ?? batch.sewingWorkerId } : {}),
+          ...(batch.stage === "packaging"
+            ? { packagingWorkerId: workerId ?? batch.packagingWorkerId }
+            : {}),
+        };
+
+        if (target !== "done") {
+          set({
+            productionBatches: state.productionBatches.map((entry) =>
+              entry.id === batchId ? updated : entry,
+            ),
+          });
+          return true;
+        }
+
+        const nextStock = { ...state.stock };
+        const byColor = new Map<(typeof COLORS)[number], { size: number; qty: number }[]>();
+        for (const item of batch.items) {
+          nextStock[item.color] = {
+            ...nextStock[item.color],
+            [item.size]: (nextStock[item.color][item.size] ?? 0) + item.qty,
+          };
+          const rows = byColor.get(item.color) ?? [];
+          rows.push({ size: item.size, qty: item.qty });
+          byColor.set(item.color, rows);
+        }
+
+        const incoming = [...state.incoming];
+        const events = [...state.events];
+        for (const [color, rows] of byColor.entries()) {
+          const incomingId = uid("in");
+          const totalPairs = rows.reduce((sum, row) => sum + row.qty, 0);
+          incoming.push({
+            id: incomingId,
+            date: now.slice(0, 10),
+            color,
+            items: rows,
+            totalPairs,
+            note: batch.note || `Производство · ${batch.id}`,
+            createdAt: now,
+          });
+          events.push({
+            id: uid("ev"),
+            date: now.slice(0, 10),
+            type: "incoming",
+            pairs: totalPairs,
+            sum: 0,
+            note: `Готовый крой → склад: ${batch.id}`,
+            incomingId,
+          });
+        }
+
+        set({
+          stock: nextStock,
+          incoming,
+          events,
+          productionBatches: state.productionBatches.map((entry) =>
+            entry.id === batchId ? updated : entry,
+          ),
+        });
+        return true;
+      },
+
+      cancelProductionBatch: (batchId) => {
+        const state = get();
+        const batch = state.productionBatches.find((entry) => entry.id === batchId);
+        if (!batch || !isActiveProductionStage(batch.stage)) return false;
+        const now = new Date().toISOString();
+        set({
+          productionBatches: state.productionBatches.map((entry) =>
+            entry.id === batchId
+              ? {
+                  ...entry,
+                  stage: "cancelled",
+                  updatedAt: now,
+                  history: [...entry.history, { stage: "cancelled", at: now }],
+                }
+              : entry,
+          ),
+        });
+        return true;
+      },
+
       importState: (raw) => {
         if (!raw || typeof raw !== "object") return false;
         const d = raw as Partial<WarehouseState>;
@@ -920,6 +1083,7 @@ export const useWarehouse = create<Store>()(
           boxes: ensureBoxes(d.boxes),
           payables: d.payables ?? [],
           workers: d.workers ?? [],
+          productionBatches: normalizeProductionBatches(d.productionBatches),
         };
         set(next);
         return true;
@@ -927,7 +1091,7 @@ export const useWarehouse = create<Store>()(
     }),
     {
       name: "cheshki_erp_v1",
-      version: 33,
+      version: 34,
       migrate: (persisted, version) => {
         const state = persisted as WarehouseState;
         if (!state?.stock?.white) return SEED;
@@ -943,6 +1107,14 @@ export const useWarehouse = create<Store>()(
             ...state,
             stock: normalizeStock(state.stock),
             boxes: ensureBoxes(state.boxes),
+            productionBatches: normalizeProductionBatches(state.productionBatches),
+          };
+        }
+
+        if (version < 34) {
+          return {
+            ...state,
+            productionBatches: normalizeProductionBatches(state.productionBatches),
           };
         }
 

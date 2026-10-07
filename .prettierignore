@@ -1,0 +1,6 @@
+src/routeTree.gen.ts
+package-lock.json
+.output
+.nitro
+node_modules
+public

@@ -1,6 +1,7 @@
 import {
   COLORS,
   SELL_PRICE,
+  SIZES,
   type CashKind,
   type CashTxn,
   type Color,
@@ -135,7 +136,7 @@ export function availableMonths(state: WarehouseState): string[] {
 export function lowStock(state: WarehouseState) {
   const rows: { color: Color; size: number; pairs: number; need: number }[] = [];
   for (const color of COLORS) {
-    for (let size = 14; size <= 28; size++) {
+    for (const size of SIZES) {
       const pairs = state.stock[color][size] ?? 0;
       if (pairs < state.lowThreshold) {
         rows.push({ color, size, pairs, need: state.lowThreshold - pairs });

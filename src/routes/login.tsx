@@ -1,13 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import {
-  GROK_PROVIDERS,
-  authClient,
-  authEnabled,
-  emailPasswordEnabled,
-  signIn as signInSocial,
-  socialAuthEnabled,
-} from "@/lib/auth/client";
+import { authClient, authEnabled, emailPasswordEnabled } from "@/lib/auth/client";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 
@@ -122,11 +115,7 @@ function Login() {
               </p>
             ) : null}
             <Button type="submit" className="w-full" disabled={pending}>
-              {pending
-                ? "Подождите…"
-                : mode === "sign-in"
-                  ? "Войти"
-                  : "Создать аккаунт"}
+              {pending ? "Подождите…" : mode === "sign-in" ? "Войти" : "Создать аккаунт"}
             </Button>
             <button
               type="button"
@@ -137,29 +126,6 @@ function Login() {
               {mode === "sign-in" ? "Нет аккаунта? Создать" : "Уже есть аккаунт? Войти"}
             </button>
           </form>
-        ) : null}
-
-        {authEnabled && socialAuthEnabled ? (
-          <div className="space-y-2">
-            {emailPasswordEnabled ? (
-              <div className="flex items-center gap-3 py-1 text-xs text-subtle">
-                <span className="h-px flex-1 bg-border" />
-                или
-                <span className="h-px flex-1 bg-border" />
-              </div>
-            ) : null}
-            {GROK_PROVIDERS.map((provider) => (
-              <Button
-                key={provider.providerId}
-                type="button"
-                variant="secondary"
-                className="w-full"
-                onClick={() => signInSocial(provider.providerId, { callbackURL: "/" })}
-              >
-                Продолжить с {provider.label}
-              </Button>
-            ))}
-          </div>
         ) : null}
 
         {!authEnabled ? <p className="text-sm text-muted">Вход отключён.</p> : null}
