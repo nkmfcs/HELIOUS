@@ -4,6 +4,7 @@ import {
   ArrowUpRight,
   Banknote,
   CalendarDays,
+  PackageCheck,
   Pencil,
   Phone,
   UserRound,
@@ -18,18 +19,20 @@ import { WorkerAccrualEditor } from "@/components/worker-accrual-editor";
 import { formatCompact, formatDate, formatNum, todayISO } from "@/lib/format";
 import { useWarehouse } from "@/lib/store";
 import { payableLeft, workerAccrued, workerOwed, workerPaid } from "@/lib/stats";
+import { cleanWholeNumber, pairsAccrualLabel, pairsAmount, workerPairs } from "@/lib/worker-pay";
 import { WORKER_ROLES, type Payable, type WorkerRole, workerRoleLabel } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_app/workers/$workerId")({ component: WorkerPage });
 
-type ActionMode = "accrual" | "payment" | null;
+type ActionMode = "pairs" | "accrual" | "payment" | null;
 
 function WorkerPage() {
   const { workerId } = Route.useParams();
   const state = useWarehouse();
   const payWorker = useWarehouse((store) => store.payWorker);
   const addWorkerDebt = useWarehouse((store) => store.addWorkerDebt);
+  const addWorkerPairs = useWarehouse((store) => store.addWorkerPairs);
   const payPayable = useWarehouse((store) => store.payPayable);
   const updateWorker = useWarehouse((store) => store.updateWorker);
   const worker = (state.workers ?? []).find((entry) => entry.id === workerId);
@@ -38,6 +41,9 @@ function WorkerPage() {
   const [payment, setPayment] = useState("");
   const [paymentNote, setPaymentNote] = useState("");
   const [paymentDate, setPaymentDate] = useState(todayISO());
+  const [pairs, setPairs] = useState("");
+  const [pairsNote, setPairsNote] = useState("");
+  const [pairsDate, setPairsDate] = useState(todayISO());
   const [accrual, setAccrual] = useState("");
   const [accrualNote, setAccrualNote] = useState("");
   const [accrualDate, setAccrualDate] = useState(todayISO());
@@ -46,6 +52,7 @@ function WorkerPage() {
   const [editRole, setEditRole] = useState<WorkerRole>(worker?.role ?? "other");
   const [editPhone, setEditPhone] = useState(worker?.phone ?? "");
   const [editNote, setEditNote] = useState(worker?.note ?? "");
+  const [editRate, setEditRate] = useState(worker?.rate ? String(worker.rate) : "");
   const [editingAccrual, setEditingAccrual] = useState<Payable | null>(null);
 
   if (!worker) {
@@ -62,6 +69,9 @@ function WorkerPage() {
   const paid = workerPaid(state, worker.id);
   const owed = workerOwed(state, worker.id);
   const accrued = workerAccrued(state, worker.id);
+  const pairsTaken = workerPairs(state, worker.id);
+  const rate = cleanWholeNumber(worker.rate);
+  const pairsCount = cleanWholeNumber(parseAmount(pairs));
   const payables = (state.payables ?? [])
     .filter((entry) => entry.workerId === worker.id)
     .sort((a, b) => b.date.localeCompare(a.date));
@@ -75,7 +85,7 @@ function WorkerPage() {
       kind: "accrual" as const,
       date: entry.date,
       amount: entry.amount,
-      note: entry.note,
+      note: [pairsAccrualLabel(entry, formatNum), entry.note].filter(Boolean).join(" · "),
       detail:
         payableLeft(entry) > 0
           ? `Осталось ${formatNum(payableLeft(entry))}`
@@ -108,6 +118,20 @@ function WorkerPage() {
     toast(`Выплачено ${formatNum(amount)}`);
   }
 
+  function recordPairs() {
+    const error = addWorkerPairs(workerId, pairsCount, pairsNote, pairsDate);
+    if (error) {
+      toast(error);
+      return;
+    }
+    toast(
+      `Принято ${formatNum(pairsCount)} пар · начислено ${formatNum(pairsAmount(pairsCount, rate))}`,
+    );
+    setPairs("");
+    setPairsNote("");
+    setMode(null);
+  }
+
   function recordAccrual() {
     const amount = parseAmount(accrual);
     if (!amount || amount <= 0) {
@@ -131,6 +155,7 @@ function WorkerPage() {
       role: editRole,
       phone: editPhone,
       note: editNote,
+      rate: parseAmount(editRate) || 0,
     });
     setEditOpen(false);
     toast("Карточка обновлена");
@@ -153,6 +178,9 @@ function WorkerPage() {
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="truncate text-2xl font-semibold tracking-tight">{worker.name}</h1>
               <Badge tone="accent">{workerRoleLabel(worker.role)}</Badge>
+            </div>
+            <div className="mt-2 text-sm text-muted">
+              {rate > 0 ? `Ставка: ${formatNum(rate)} сум за пару` : "Ставка за пару не указана"}
             </div>
             {worker.phone ? (
               <a
@@ -205,6 +233,18 @@ function WorkerPage() {
               </div>
             </div>
             <div>
+              <Label>Ставка за пару, сум</Label>
+              <Input
+                inputMode="numeric"
+                value={editRate}
+                onChange={(event) => setEditRate(event.target.value)}
+                placeholder="например 3 000"
+              />
+              <p className="mt-1.5 text-xs text-subtle">
+                Новая ставка действует для следующих записей, прошлые не пересчитываются.
+              </p>
+            </div>
+            <div>
               <Label>Телефон</Label>
               <Input
                 inputMode="tel"
@@ -226,7 +266,10 @@ function WorkerPage() {
         </section>
       ) : null}
 
-      <Card className="grid grid-cols-3 gap-px overflow-hidden bg-border">
+      <Card className="grid grid-cols-2 gap-px overflow-hidden bg-border sm:grid-cols-4">
+        <div className="bg-surface p-3 sm:p-4">
+          <Stat label="Принято пар" value={formatNum(pairsTaken)} />
+        </div>
         <div className="bg-surface p-3 sm:p-4">
           <Stat label="Начислено" value={formatCompact(accrued)} />
         </div>
@@ -238,7 +281,23 @@ function WorkerPage() {
         </div>
       </Card>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-3">
+        <button
+          type="button"
+          onClick={() => setMode(mode === "pairs" ? null : "pairs")}
+          className={cn(
+            "rounded-lg p-4 text-left transition-colors",
+            mode === "pairs" ? "bg-accent text-accent-fg" : "bg-surface text-fg",
+          )}
+        >
+          <PackageCheck className="size-5" />
+          <div className="mt-3 text-sm font-semibold">Принял пары</div>
+          <div
+            className={cn("mt-1 text-xs", mode === "pairs" ? "text-accent-fg/70" : "text-muted")}
+          >
+            Долг по ставке за пару
+          </div>
+        </button>
         <button
           type="button"
           onClick={() => setMode(mode === "accrual" ? null : "accrual")}
@@ -272,6 +331,71 @@ function WorkerPage() {
           </div>
         </button>
       </div>
+
+      {mode === "pairs" ? (
+        <Group className="space-y-3 p-4">
+          {rate > 0 ? (
+            <>
+              <div>
+                <Label>Сколько пар принял</Label>
+                <Input
+                  inputMode="numeric"
+                  value={pairs}
+                  onChange={(event) => setPairs(event.target.value)}
+                  placeholder="например 200"
+                />
+              </div>
+              <div className="rounded-md bg-bg px-3 py-2.5 text-sm">
+                {pairsCount > 0 ? (
+                  <>
+                    {formatNum(pairsCount)} пар × {formatNum(rate)} ={" "}
+                    <span className="font-semibold">
+                      {formatNum(pairsAmount(pairsCount, rate))} сум
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-muted">Ставка {formatNum(rate)} сум за пару</span>
+                )}
+              </div>
+              <div>
+                <Label>Заметка</Label>
+                <Input
+                  value={pairsNote}
+                  onChange={(event) => setPairsNote(event.target.value)}
+                  placeholder="например белые 17–19"
+                />
+              </div>
+              <div>
+                <Label>Дата</Label>
+                <Input
+                  type="date"
+                  value={pairsDate}
+                  onChange={(event) => setPairsDate(event.target.value)}
+                />
+              </div>
+              <Button className="w-full" onClick={recordPairs}>
+                Записать и начислить
+              </Button>
+            </>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm text-muted">
+                Чтобы считать долг за пары, сначала укажите ставку за пару этого работника.
+              </p>
+              <Button
+                className="w-full"
+                variant="secondary"
+                onClick={() => {
+                  setMode(null);
+                  setEditOpen(true);
+                }}
+              >
+                Указать ставку
+              </Button>
+            </div>
+          )}
+        </Group>
+      ) : null}
 
       {mode === "accrual" ? (
         <Group className="space-y-3 p-4">
@@ -351,8 +475,11 @@ function WorkerPage() {
                   <div className="flex items-center gap-3 px-4 py-3.5">
                     <div className="min-w-0 flex-1">
                       <div className="break-words text-sm font-medium">
-                        {entry.note || "Работа"}
+                        {pairsAccrualLabel(entry, formatNum) ?? (entry.note || "Работа")}
                       </div>
+                      {pairsAccrualLabel(entry, formatNum) && entry.note ? (
+                        <div className="mt-0.5 break-words text-xs text-muted">{entry.note}</div>
+                      ) : null}
                       <div className="mt-0.5 flex items-center gap-1 text-xs text-muted">
                         <CalendarDays className="size-3" /> {formatDate(entry.date)}
                       </div>

@@ -9,6 +9,7 @@ import { Input, Label, Textarea } from "@/components/ui/input";
 import { formatCompact, formatNum } from "@/lib/format";
 import { useWarehouse } from "@/lib/store";
 import { workerAccrued, workerOwed, workerPaid } from "@/lib/stats";
+import { workerPairs } from "@/lib/worker-pay";
 import { WORKER_ROLES, type WorkerRole, workerRoleLabel } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -24,6 +25,7 @@ function WorkersPage() {
   const [name, setName] = useState("");
   const [role, setRole] = useState<WorkerRole>("sewing");
   const [phone, setPhone] = useState("");
+  const [rate, setRate] = useState("");
   const [note, setNote] = useState("");
   const [filter, setFilter] = useState<RoleFilter>("all");
 
@@ -32,6 +34,7 @@ function WorkersPage() {
     accrued: workerAccrued(state, worker.id),
     paid: workerPaid(state, worker.id),
     owed: workerOwed(state, worker.id),
+    pairs: workerPairs(state, worker.id),
   }));
   const list = workers
     .filter((worker) => filter === "all" || worker.role === filter)
@@ -45,10 +48,17 @@ function WorkersPage() {
       toast("Укажи имя работника");
       return;
     }
-    const id = addWorker({ name, role, phone, note });
+    const id = addWorker({
+      name,
+      role,
+      phone,
+      note,
+      rate: Number(rate.replace(/\s/g, "").replace(",", ".")) || 0,
+    });
     if (!id) return;
     setName("");
     setPhone("");
+    setRate("");
     setNote("");
     setFormOpen(false);
     toast("Работник добавлен");
@@ -114,6 +124,15 @@ function WorkersPage() {
               </div>
             </div>
             <div>
+              <Label>Ставка за пару, сум</Label>
+              <Input
+                inputMode="numeric"
+                value={rate}
+                onChange={(event) => setRate(event.target.value)}
+                placeholder="например 3 000 (можно указать позже)"
+              />
+            </div>
+            <div>
               <Label>Телефон</Label>
               <Input
                 inputMode="tel"
@@ -127,7 +146,7 @@ function WorkersPage() {
               <Textarea
                 value={note}
                 onChange={(event) => setNote(event.target.value)}
-                placeholder="Расценка, график или важная информация"
+                placeholder="График или важная информация"
               />
             </div>
             <div className="grid grid-cols-2 gap-2">
@@ -199,6 +218,12 @@ function WorkersPage() {
                       </div>
                     ) : null}
                     <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs">
+                      {worker.rate ? (
+                        <span className="text-subtle">{formatNum(worker.rate)} сум/пара</span>
+                      ) : null}
+                      {worker.pairs > 0 ? (
+                        <span className="text-subtle">Принято {formatNum(worker.pairs)} пар</span>
+                      ) : null}
                       <span className="text-subtle">Начислено {formatCompact(worker.accrued)}</span>
                       <span className="text-ok">Выплачено {formatCompact(worker.paid)}</span>
                     </div>
