@@ -26,6 +26,7 @@ import {
   productionStageRole,
 } from "./production";
 import { orderDebt } from "./stats";
+import { buildPairsAccrual, cleanWholeNumber } from "./worker-pay";
 import {
   addItemsToStock,
   allocateOrder,
@@ -133,13 +134,21 @@ type Actions = {
     patch: Pick<Payable, "amount" | "date" | "note">,
     expected: Payable,
   ) => string | null;
-  addWorker: (data: { name: string; role?: WorkerRole; phone?: string; note?: string }) => string;
+  addWorker: (data: {
+    name: string;
+    role?: WorkerRole;
+    phone?: string;
+    note?: string;
+    rate?: number;
+  }) => string;
   updateWorker: (
     id: string,
-    patch: Partial<{ name: string; role: WorkerRole; phone: string; note: string }>,
+    patch: Partial<{ name: string; role: WorkerRole; phone: string; note: string; rate: number }>,
   ) => void;
   payWorker: (workerId: string, amount: number, note?: string, date?: string) => void;
   addWorkerDebt: (workerId: string, amount: number, note?: string, date?: string) => void;
+  /** Принять пары у работника: долг = пары × его ставка. Возвращает текст ошибки или `null`. */
+  addWorkerPairs: (workerId: string, pairs: number, note?: string, date?: string) => string | null;
   setCosts: (patch: Partial<Costs>) => void;
   setLowThreshold: (n: number) => void;
   setBox: (color: Color, size: number, box: BoxId) => void;
@@ -805,7 +814,7 @@ export const useWarehouse = create<Store>()(
         });
       },
 
-      addWorker: ({ name, role = "other", phone = "", note = "" }) => {
+      addWorker: ({ name, role = "other", phone = "", note = "", rate }) => {
         if (!name.trim()) return "";
         const id = uid("w");
         set((s) => ({
@@ -817,6 +826,7 @@ export const useWarehouse = create<Store>()(
               role,
               phone: phone.trim(),
               note: note.trim(),
+              rate: cleanWholeNumber(rate) || undefined,
               createdAt: new Date().toISOString(),
             },
           ],
@@ -835,6 +845,10 @@ export const useWarehouse = create<Store>()(
                   name: patch.name?.trim() ?? worker.name,
                   phone: patch.phone?.trim() ?? worker.phone,
                   note: patch.note?.trim() ?? worker.note,
+                  rate:
+                    patch.rate === undefined
+                      ? worker.rate
+                      : cleanWholeNumber(patch.rate) || undefined,
                 }
               : worker,
           ),
@@ -888,6 +902,27 @@ export const useWarehouse = create<Store>()(
           date,
           workerId,
         });
+      },
+
+      addWorkerPairs: (workerId, pairs, note = "", date = todayISO()) => {
+        const worker = get().workers.find((x) => x.id === workerId);
+        if (!worker) return "Работник не найден";
+        const accrual = buildPairsAccrual(worker, pairs);
+        if ("error" in accrual) return accrual.error;
+        set((s) => ({
+          payables: [
+            ...(s.payables ?? []),
+            {
+              id: uid("d"),
+              ...accrual,
+              paidSum: 0,
+              note: note.trim() || "Принял пары",
+              date: validDate(date),
+              workerId,
+            },
+          ],
+        }));
+        return null;
       },
 
       setCosts: (patch) =>

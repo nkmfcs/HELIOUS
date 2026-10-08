@@ -128,6 +128,10 @@ export type Payable = {
   note: string;
   date: string;
   workerId?: string;
+  /** Пар принято у работника (начисление за пары). */
+  pairs?: number;
+  /** Ставка за пару на момент начисления, сум. */
+  rate?: number;
 };
 
 export const WORKER_ROLES = ["sewing", "cutting", "packaging", "other"] as const;
@@ -139,6 +143,8 @@ export type Worker = {
   role: WorkerRole;
   phone: string;
   note: string;
+  /** Ставка работника за одну пару, сум. */
+  rate?: number;
   createdAt: string;
 };
 
