@@ -777,3 +777,50 @@ test("edited accruals and unchanged cash sync to another device automatically", 
   assert.equal(phone.state().payables[0].amount, 280000);
   assert.deepEqual(phone.state().cash, data.cash);
 });
+
+test("pairs taken from a worker are charged at their rate, reduced by payments and synced", async () => {
+  const data = fixture();
+  data.workers = [
+    {
+      id: "seamstress",
+      name: "Seamstress",
+      role: "sewing",
+      phone: "",
+      note: "",
+      rate: 3000,
+      createdAt: "2026-09-01T10:00:00Z",
+    },
+  ];
+  const server = makeServer(data);
+  const pc = browser(server, { initial: data, baseline: data });
+  const phone = browser(server, { initial: data, baseline: data });
+  await start(pc);
+  await start(phone);
+
+  assert.equal(pc.actions().addWorkerPairs("seamstress", 200, "white", "2026-09-14"), null);
+  const [row] = pc.state().payables;
+  assert.equal(row.amount, 600000);
+  assert.equal(row.pairs, 200);
+  assert.equal(row.rate, 3000);
+
+  // Изменение ставки не пересчитывает уже записанные пары.
+  pc.actions().updateWorker("seamstress", { rate: 4000 });
+  assert.equal(pc.state().payables[0].amount, 600000);
+  assert.equal(pc.actions().addWorkerPairs("seamstress", 10), null);
+  assert.equal(pc.state().payables[1].amount, 40000);
+
+  pc.actions().payWorker("seamstress", 250000, "advance", "2026-09-15");
+  const owed = pc
+    .state()
+    .payables.filter((entry) => entry.workerId === "seamstress")
+    .reduce((sum, entry) => sum + entry.amount - entry.paidSum, 0);
+  assert.equal(owed, 390000);
+
+  assert.match(pc.actions().addWorkerPairs("seamstress", 0), /пар/);
+  pc.actions().updateWorker("seamstress", { rate: 0 });
+  assert.match(pc.actions().addWorkerPairs("seamstress", 5), /ставку/);
+
+  await pc.advance(800);
+  await phone.advance(POLL_MS);
+  assert.deepEqual(phone.state(), pc.state());
+});

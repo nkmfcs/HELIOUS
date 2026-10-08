@@ -5,6 +5,12 @@ import { addItemsToStock, allocateOrder, normalizeStock } from "../src/lib/inven
 import { parseOrderText } from "../src/lib/order-parser.ts";
 import { workerAccrued, workerOwed, workerPaid } from "../src/lib/stats.ts";
 import { COLORS, SIZES } from "../src/lib/types.ts";
+import {
+  buildPairsAccrual,
+  pairsAccrualLabel,
+  pairsAmount,
+  workerPairs,
+} from "../src/lib/worker-pay.ts";
 
 function oldThreeColorStock() {
   const color = Object.fromEntries(SIZES.map((size) => [size, 0]));
@@ -91,4 +97,36 @@ test("worker summary keeps accruals, payments and outstanding debt separate", ()
   assert.equal(workerAccrued(state, "worker-1"), 1_000_000);
   assert.equal(workerPaid(state, "worker-1"), 400_000);
   assert.equal(workerOwed(state, "worker-1"), 600_000);
+});
+
+test("pairs taken from a worker become a debt at that worker's own rate", () => {
+  const accrual = buildPairsAccrual({ name: "Швея", rate: 3000 }, 200);
+  assert.deepEqual(accrual, { person: "Швея", amount: 600000, pairs: 200, rate: 3000 });
+  assert.equal(pairsAmount(200, 3000), 600000);
+});
+
+test("pairs accrual is refused without a rate or a valid pair count", () => {
+  assert.match(buildPairsAccrual({ name: "Швея" }, 200).error, /ставку/);
+  assert.match(buildPairsAccrual({ name: "Швея", rate: 3000 }, 0).error, /пар/);
+  assert.match(buildPairsAccrual({ name: "Швея", rate: 3000 }, -5).error, /пар/);
+  assert.match(buildPairsAccrual({ name: "Швея", rate: 3000 }, Number.NaN).error, /пар/);
+});
+
+test("worker pairs are summed per worker and keep the rate they were taken at", () => {
+  const state = {
+    payables: [
+      { workerId: "a", amount: 600000, paidSum: 0, pairs: 200, rate: 3000 },
+      { workerId: "a", amount: 150000, paidSum: 0, pairs: 50, rate: 3000 },
+      { workerId: "a", amount: 90000, paidSum: 0 },
+      { workerId: "b", amount: 100000, paidSum: 0, pairs: 40, rate: 2500 },
+    ],
+  };
+  assert.equal(workerPairs(state, "a"), 250);
+  assert.equal(workerPairs(state, "b"), 40);
+  assert.equal(workerPairs(state, "nobody"), 0);
+  const format = (n) => String(n);
+  assert.equal(pairsAccrualLabel(state.payables[0], format), "200 пар × 3000");
+  // Вручную исправленная сумма — подпись «пары × ставка» больше не верна.
+  assert.equal(pairsAccrualLabel({ amount: 1, pairs: 200, rate: 3000 }, format), null);
+  assert.equal(pairsAccrualLabel(state.payables[2], format), null);
 });
