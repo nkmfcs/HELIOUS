@@ -173,6 +173,7 @@ export type ProductionMove = ProductionMoveInput & {
   id: string;
   at: string;
   audit?: { at: string; before: ProductionMoveInput }[];
+  cancelledAt?: string;
 };
 
 export type WarehouseState = {

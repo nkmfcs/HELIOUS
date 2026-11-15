@@ -34,6 +34,7 @@ function PreorderPage() {
   const cancelProductionBatch = useWarehouse((s) => s.cancelProductionBatch);
   const [selection, setSelection] = useState<Selection>({});
   const [showAll, setShowAll] = useState(false);
+  const [pageTab,setPageTab]=useState<"production"|"plan">("production");
 
   const moves = state.productionMoves ?? [];
   const physical = replayProduction(moves).balances;
@@ -177,13 +178,15 @@ function PreorderPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight">Предзаказ</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">Производство</h1>
         <p className="mt-1 text-sm text-muted">
-          Выбирай позиции, отправляй их по этапам и закрывай производство прямо здесь.
+          Остатки, работники и план выпуска — в одном месте.
         </p>
       </div>
 
-      <ProductionMovements />
+      <div className="grid grid-cols-2 gap-1 rounded-xl bg-elevated p-1" aria-label="Раздел производства">{([["production","Производство"],["plan","Предзаказ"]] as const).map(([v,label])=><button key={v} type="button" aria-pressed={pageTab===v} onClick={()=>setPageTab(v)} className={cn("rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",pageTab===v?"bg-surface text-fg shadow-sm":"text-muted")}>{label}</button>)}</div>
+      <div className={pageTab==="production"?"":"hidden"}><ProductionMovements /></div>
+      <div className={pageTab==="plan"?"space-y-6":"hidden"}>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Позиций ниже порога" value={String(rows.length)} />
@@ -307,7 +310,7 @@ function PreorderPage() {
           <div className="flex justify-between"><Badge tone={productionStageTone(batch.stage)}>{batch.stage==="cutting"?"Осталось принять крой":productionStageLabel(batch.stage)}</Badge><b>{formatNum(productionPairs(batch))} пар</b></div>
           <p className="text-xs text-muted">{batch.items.map(i=>colorLabel(i.color)+" "+i.size+"×"+i.qty).join(" · ")}</p>
           <p className="text-xs text-muted">{batch.stage==="cutting"?"Примите фактическое количество в журнале, выбрав этот предзаказ.":"Старая партия: сверьте фактическое место и количество, затем внесите начальные остатки. Автоприёмка отключена."}</p>
-          {!moves.some(m=>m.planId===batch.id)?<Button variant="secondary" onClick={()=>cancelBatch(batch.id)}>Отменить после сверки</Button>:<p className="text-xs text-muted">Частично принят — исправление факта через журнал.</p>}
+          {!moves.some(m=>!m.cancelledAt&&m.planId===batch.id)?<Button variant="secondary" onClick={()=>cancelBatch(batch.id)}>Отменить после сверки</Button>:<p className="text-xs text-muted">Частично принят — исправление факта через журнал.</p>}
         </Card>)}
       </section>:null}
 
@@ -367,6 +370,7 @@ function PreorderPage() {
           </Card>
         )}
       </section>
+      </div>
     </div>
   );
 }

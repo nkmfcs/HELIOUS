@@ -25,7 +25,7 @@ import {
   normalizeProductionBatches,
   isActiveProductionStage,
 } from "./production";
-import { productionToken, replayProduction, validateMoveInput, earnsForMove, reconcileProductionPayable, balanceItems, workerLocation } from "./production-moves";
+import { productionToken, replayProduction, validateMoveInput, earnsForMove, reconcileProductionPayable, balanceItems, workerLocation, cancelProductionMoves } from "./production-moves";
 import { orderDebt } from "./stats";
 import { buildPairsAccrual, cleanWholeNumber } from "./worker-pay";
 import {
@@ -155,6 +155,7 @@ type Actions = {
   setBox: (color: Color, size: number, box: BoxId) => void;
   createProductionBatch: (input: { items: OrderItem[]; note?: string }) => string | null;
   confirmProductionMove: (input: ProductionMoveInput, expected: string, editingId?: string) => string | null;
+  voidProductionMoves: (ids: string[], expected: string) => string | null;
   advanceProductionBatch: (input: {
     batchId: string;
     nextStage?: ProductionStage;
@@ -985,7 +986,7 @@ export const useWarehouse = create<Store>()(
         if (!items) return "Укажите количество";
         const oldMoves = state.productionMoves ?? [];
         const previous = editingId ? oldMoves.find(m=>m.id===editingId) : undefined;
-        if (editingId && !previous) return "Операция не найдена";
+        if (editingId && (!previous || previous.cancelledAt)) return "Операция не найдена или отменена";
         if (previous && previous.kind !== input.kind) return "Тип сохранённой операции нельзя изменить";
         const at = new Date().toISOString();
         const before = previous ? { kind: previous.kind, items: previous.items, workerId: previous.workerId, planId: previous.planId, openingTo: previous.openingTo, rate: previous.rate, note: previous.note, date: previous.date } : undefined;
@@ -1025,11 +1026,20 @@ export const useWarehouse = create<Store>()(
         return null;
       },
 
+      voidProductionMoves: (ids, expected) => {
+        const state=get();
+        if(productionToken(state)!==expected) return "Данные изменились. Проверьте выбор заново.";
+        const result=cancelProductionMoves(state,ids,new Date().toISOString());
+        if(result.error!==null) return result.error;
+        set(result.patch);
+        return null;
+      },
+
       cancelProductionBatch: (batchId) => {
         const state = get();
         const batch = state.productionBatches.find((entry) => entry.id === batchId);
         if (!batch || !isActiveProductionStage(batch.stage)) return false;
-        if ((state.productionMoves ?? []).some(m=>m.planId===batchId)) return false;
+        if ((state.productionMoves ?? []).some(m=>!m.cancelledAt&&m.planId===batchId)) return false;
         const now = new Date().toISOString();
         set({
           productionBatches: state.productionBatches.map((entry) =>

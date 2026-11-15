@@ -34,6 +34,7 @@ export function replayProduction(moves: readonly ProductionMove[]): { balances: 
     if (!move || typeof move.id !== "string" || ids.has(move.id) || !Array.isArray(move.items))
       return { balances, error: "Некорректный журнал производства" };
     ids.add(move.id);
+    if (move.cancelledAt) continue;
     const route = moveRoute(move);
     const items = manualProductionItems(move.items);
     if (!route || !items) return { balances, error: "Некорректная операция: " + move.id };
@@ -68,7 +69,7 @@ export function balanceItems(balances: Balances, location: string): OrderItem[] 
 export function remainingPlanItems(batch: ProductionBatch, moves: readonly ProductionMove[]): OrderItem[] {
   if (batch.stage !== "cutting") return [];
   const received = new Map<string, number>();
-  for (const move of moves) if (move.kind === "cut-in" && move.planId === batch.id) {
+  for (const move of moves) if (!move.cancelledAt && move.kind === "cut-in" && move.planId === batch.id) {
     for (const item of move.items) received.set(itemKey(item), (received.get(itemKey(item)) ?? 0) + item.qty);
   }
   return batch.items.map(item => ({...item,qty: Math.max(0,item.qty-(received.get(itemKey(item))??0))})).filter(item=>item.qty>0);
@@ -127,4 +128,25 @@ export function reconcileProductionPayable(state: Pick<WarehouseState, "workers"
   const rest = payables.filter(p=>p.productionMoveId!==move.id);
   if (!amount) return {payables:rest,error:null};
   return {payables:[...rest,{id:old?.id??"production-pay:"+move.id,productionMoveId:move.id,workerId:worker.id,person:worker.name,amount,paidSum:old?.paidSum??0,pairs,rate,date:move.date,note:MOVE_LABELS[move.kind]}],error:null};
+}
+
+/** Cancel related movements as one atomic operation. Keep their originals for audit. */
+export function cancelProductionMoves(state: Pick<WarehouseState,"productionMoves"|"stock"|"payables"|"incoming"|"events">, ids: string[], at: string):
+ {error: string; patch?: never} | {error: null; patch: Pick<WarehouseState,"productionMoves"|"stock"|"payables"|"incoming"|"events">} {
+  const selected = new Set(ids);
+  const moves = state.productionMoves ?? [];
+  const targets = moves.filter(m=>selected.has(m.id)&&!m.cancelledAt);
+  if (!selected.size || targets.length!==selected.size) return {error:"Выбранные операции уже изменились"};
+  const productionMoves=moves.map(m=>selected.has(m.id)?{...m,cancelledAt:at}:m);
+  const replay=replayProduction(productionMoves);
+  if (replay.error) return {error:"Есть связанные операции. Выберите их вместе. "+replay.error};
+  if (state.payables.some(p=>p.productionMoveId&&selected.has(p.productionMoveId)&&p.paidSum>0)) return {error:"Нельзя отменить уже оплаченное начисление"};
+  const stock=Object.fromEntries(COLORS.map(c=>[c,{...state.stock[c]}])) as WarehouseState["stock"];
+  for (const m of targets) if(m.kind==="warehouse-in") for(const i of m.items) {
+    stock[i.color][i.size]=(stock[i.color][i.size]??0)-i.qty;
+    if(stock[i.color][i.size]<0) return {error:"Нельзя отменить приход: часть товара уже использована"};
+  }
+  const prefixes=targets.filter(m=>m.kind==="warehouse-in").map(m=>"production-move:"+m.id+":");
+  const belongs=(id?:string)=>!!id&&prefixes.some(prefix=>id.startsWith(prefix));
+  return {error:null,patch:{productionMoves,stock,payables:state.payables.filter(p=>!p.productionMoveId||!selected.has(p.productionMoveId)),incoming:state.incoming.filter(i=>!belongs(i.id)),events:state.events.filter(e=>!belongs(e.incomingId))}};
 }
