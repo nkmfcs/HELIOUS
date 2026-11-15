@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Warehouse, Wallet, TrendingUp, AlertCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Group, MetricRow, SectionLabel } from "@/components/ui/card";
 import {
@@ -51,20 +51,21 @@ function Home() {
     .sort((a, b) => b.debt - a.debt);
 
   return (
-    <div className="space-y-7">
+    <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-semibold tracking-tight">Склад</h1>
         <p className="mt-1 text-sm text-muted">{formatDate(today)}</p>
       </div>
 
       <Group>
-        <div className="px-4 pb-4 pt-5">
+        <div className="helious-hero px-4 pb-4 pt-5">
+          <div className="mb-3 inline-flex items-center gap-1.5 rounded-lg bg-accent/10 px-2.5 py-1 text-xs font-medium text-accent"><Warehouse className="size-4"/> Готовая продукция</div>
           <div className="text-4xl font-semibold tabular leading-none">{formatNum(pairs)}</div>
           <div className="mt-1 text-sm text-muted">пар на складе</div>
           <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
             {COLORS.map((c) => (
-              <div key={c}>
-                <div className="text-xs text-subtle">{colorLabel(c)}</div>
+              <div key={c} className="rounded-lg border border-border bg-surface/80 p-2.5">
+                <div className="flex items-center gap-1.5 text-xs text-muted"><span className="helious-palette" style={{background:({white:"#fff",black:"#252525",gray:"#a6a6ab",gold:"#c4a574"})[c]}}/>{colorLabel(c)}</div>
                 <div className="mt-0.5 text-lg font-semibold tabular">
                   {formatNum(stockTotal(state.stock[c]))}
                 </div>
@@ -92,7 +93,7 @@ function Home() {
       </Group>
 
       <section>
-        <SectionLabel>Сегодня</SectionLabel>
+        <SectionLabel><span className="flex items-center gap-2"><Wallet className="size-4 text-accent"/> Сегодня</span></SectionLabel>
         <Group>
           <MetricRow label="Отгружено" value={`${formatNum(todayR.shippedPairs)} пар`} />
           <div className="h-px bg-border ml-4" />
@@ -105,7 +106,7 @@ function Home() {
       </section>
 
       <section>
-        <SectionLabel>{monthLabel(monthKey(today))}</SectionLabel>
+        <SectionLabel><span className="flex items-center gap-2"><TrendingUp className="size-4 text-ok"/> {monthLabel(monthKey(today))}</span></SectionLabel>
         <Group>
           <MetricRow label="Заказов" value={formatNum(month.orderCount)} />
           <div className="h-px bg-border ml-4" />
@@ -206,7 +207,7 @@ function Home() {
 
       {low.length > 0 ? (
         <section>
-          <SectionLabel>Предзаказ</SectionLabel>
+          <SectionLabel><span className="flex items-center gap-2"><AlertCircle className="size-4 text-warn"/> Предзаказ</span></SectionLabel>
           <Link to="/preorder">
             <Group>
               <div className="flex items-center justify-between px-4 py-3.5">

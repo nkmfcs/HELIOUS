@@ -66,7 +66,7 @@ function WorkersPage() {
   }
 
   return (
-    <div className="space-y-7">
+    <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Работники</h1>
@@ -202,9 +202,9 @@ function WorkersPage() {
                 <Link
                   to="/workers/$workerId"
                   params={{ workerId: worker.id }}
-                  className="flex items-center gap-3 px-4 py-4"
+                  className="helious-press flex items-center gap-3 px-4 py-4"
                 >
-                  <span className="grid size-10 shrink-0 place-items-center rounded-full bg-accent text-sm font-semibold text-accent-fg">
+                  <span className={cn("grid size-10 shrink-0 place-items-center rounded-xl text-sm font-semibold",worker.role==="sewing"?"bg-teal-500/10 text-teal-700":worker.role==="cutting"?"bg-amber-500/10 text-amber-700":worker.role==="packaging"?"bg-violet-500/10 text-violet-700":"bg-accent/10 text-accent")}>
                     {worker.name.trim().slice(0, 1).toUpperCase()}
                   </span>
                   <div className="min-w-0 flex-1">
