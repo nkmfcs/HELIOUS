@@ -3,6 +3,7 @@ import { setResponseHeader } from "@tanstack/react-start/server";
 import { getSql } from "@/lib/db";
 import type { WarehouseState } from "@/lib/types";
 import { authMiddleware } from "@/lib/auth/middleware";
+import { replayProduction } from "@/lib/production-moves";
 
 const SNAPSHOT_ID = "helious";
 
@@ -74,6 +75,7 @@ export const saveWarehouse = createServerFn({ method: "POST" })
     if (!data || typeof data !== "object") throw new Error("Пустые данные");
     const d = data as { state?: unknown; baseRevision?: unknown };
     if (!isWarehouseState(d.state)) throw new Error("Неверные данные склада");
+    if (d.state.productionMoves !== undefined && (!Array.isArray(d.state.productionMoves) || replayProduction(d.state.productionMoves).error)) throw new Error("Некорректный журнал производства");
     if (!Number.isInteger(d.baseRevision) || Number(d.baseRevision) < 0)
       throw new Error("Неверная версия данных");
     return { state: d.state, baseRevision: Number(d.baseRevision) };
@@ -91,6 +93,7 @@ export const saveWarehouse = createServerFn({ method: "POST" })
         updated_at = now(),
         revision = warehouse_snapshot.revision + 1
       where warehouse_snapshot.revision = ${data.baseRevision}
+        and (excluded.payload ? 'productionMoves' or not (warehouse_snapshot.payload ? 'productionMoves'))
       returning updated_at, revision
     `;
     if (saved[0]) {

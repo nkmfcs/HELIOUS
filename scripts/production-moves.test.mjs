@@ -47,3 +47,16 @@ test("invalid historical correction is rejected when already issued",()=>{
   const a=[move("1","cut-in",[item(21,50)],"cutter"),move("2","cut-out",[item(21,50)],"s")];
   assert.ok(replayProduction([{...a[0],items:[item(21,49)]},a[1]]).error);
 });
+
+test("two workers, silver and white balances stay separate and conserve quantities",()=>{
+  const sapura=[20,21,22,23,25,27].map(s=>item(s,50));
+  const tursunoy=[19,20,21,22,23,24].map(s=>item(s,50));
+  const silver=[17,18,19,20,21,22,23,24].map(s=>item(s,50,"gray"));
+  const moves=[move("1","cut-in",[...sapura,...tursunoy,...silver],"cutter"),move("2","cut-out",sapura,"sapura"),move("3","cut-out",tursunoy,"tursunoy"),move("4","sewn-in",[item(21,35),item(22,35)],"sapura")];
+  const {balances,error}=replayProduction(moves);
+  assert.equal(error,null);
+  assert.deepEqual(balanceItems(balances,"cut"),silver);
+  assert.equal(balanceItems(balances,"sewing:sapura").reduce((n,i)=>n+i.qty,0),230);
+  assert.equal(balanceItems(balances,"sewing:tursunoy").reduce((n,i)=>n+i.qty,0),300);
+  assert.equal([...balances.values()].flatMap(b=>[...b.values()]).reduce((n,q)=>n+q,0),1000);
+});
