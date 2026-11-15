@@ -980,12 +980,17 @@ export const useWarehouse = create<Store>()(
         const oldMoves = state.productionMoves ?? [];
         const previous = editingId ? oldMoves.find(m=>m.id===editingId) : undefined;
         if (editingId && !previous) return "Операция не найдена";
+        if (previous && previous.kind !== input.kind) return "Тип сохранённой операции нельзя изменить";
         const at = new Date().toISOString();
         const before = previous ? { kind: previous.kind, items: previous.items, workerId: previous.workerId, planId: previous.planId, openingTo: previous.openingTo, note: previous.note, date: previous.date } : undefined;
         const move: ProductionMove = { ...input, items, id: previous?.id ?? uid("pm"), at: previous?.at ?? at, audit: before ? [...(previous?.audit ?? []), {at,before}] : [] };
         const moves = previous ? oldMoves.map(m=>m.id===previous.id ? move : m) : [...oldMoves,move];
         const replay = replayProduction(moves);
         if (replay.error) return replay.error;
+        if (move.kind !== "warehouse-in") {
+          set({productionMoves:moves});
+          return null;
+        }
         const stock = normalizeStock(state.stock);
         if (previous?.kind === "warehouse-in") {
           for (const item of previous.items) {

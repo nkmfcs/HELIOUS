@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -26,6 +26,7 @@ export function ProductionMovements() {
   const [color,setColor] = useState<Color>("white");
   const [pending,setPending] = useState<{input:ProductionMoveInput;token:string;id?:string}>();
   const [open,setOpen] = useState(false);
+  useEffect(()=>{if(open)document.getElementById("production-move-editor")?.scrollIntoView({block:"start",behavior:"smooth"});},[open,editing]);
   const role = draft.kind==="cut-in"?"cutting":["cut-out","sewn-in"].includes(draft.kind)?"sewing":["pack-out","packed-in"].includes(draft.kind)?"packaging":null;
   const workerName = (id?:string) => state.workers.find(w=>w.id===id)?.name ?? "Не выбран";
   const locationName = (key:string) => key==="cut"?"Склад кроя":key==="sewn"?"После пошива":key==="packed"?"Упаковано · ждёт приёмки":key==="finished"?"Основной склад":key==="outside"?"Получение извне":workerName(key.split(":").slice(1).join(":"));
@@ -56,9 +57,10 @@ export function ProductionMovements() {
       {locations.map(loc=>{const items=balanceItems(balances,loc);return <Card key={loc} className="p-3"><div className="text-xs text-muted">{locationName(loc)}</div><div className="text-lg font-semibold">{formatNum(total(items))} пар</div>{items.length>0&&<details className="mt-1"><summary className="text-xs text-muted">Цвета и размеры</summary><div className="mt-1 space-y-1">{items.map(i=><div key={itemKey(i)} className="text-xs">{colorLabel(i.color)} · {i.size} × {i.qty}</div>)}</div></details>}</Card>})}
       <Card className="p-3"><div className="text-xs text-muted">Основной склад</div><div className="text-lg font-semibold">{formatNum(COLORS.reduce((n,c)=>n+Object.values(state.stock[c]).reduce((a,b)=>a+b,0),0))} пар</div><p className="text-xs text-muted">Только после подтверждения</p></Card>
     </div>
-    {open?<Card className="space-y-3 p-4">
+    {open?<div id="production-move-editor" className="scroll-mt-16"><Card className="space-y-3 p-4">
       <h3 className="font-medium">{editing?"Исправить операцию":"Новая операция"}</h3>
-      <select aria-label="Операция" value={draft.kind} onChange={e=>setDraft({...initial(),kind:e.target.value as ProductionMoveKind})} className="w-full rounded-md border border-border bg-surface p-2">{Object.entries(MOVE_LABELS).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select>
+      {draft.kind==="opening"?<p className="text-warn text-xs">Внесите только физический остаток, который ещё не учтён в журнале. Для исправления уже учтённого количества используйте «Изменить».</p>:null}
+      <select aria-label="Операция" disabled={!!editing} value={draft.kind} onChange={e=>setDraft({...initial(),kind:e.target.value as ProductionMoveKind})} className="w-full rounded-md border border-border bg-surface p-2">{Object.entries(MOVE_LABELS).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select>
       {role?<select aria-label="Работник" value={draft.workerId??""} onChange={e=>setDraft(d=>({...d,workerId:e.target.value||undefined}))} className="w-full rounded-md border border-border bg-surface p-2"><option value="">Выбрать работника</option>{state.workers.filter(w=>w.role===role).map(w=><option key={w.id} value={w.id}>{w.name}</option>)}</select>:null}
       {draft.kind==="opening"?<select aria-label="Место начального остатка" value={draft.openingTo??""} onChange={e=>setDraft(d=>({...d,openingTo:e.target.value}))} className="w-full rounded-md border border-border bg-surface p-2"><option value="">Выбрать место</option>{locations.map(l=><option key={l} value={l}>{locationName(l)}</option>)}</select>:null}
       {draft.kind==="cut-in"?<><select aria-label="Предзаказ" value={draft.planId??""} onChange={e=>setDraft(d=>({...d,planId:e.target.value||undefined}))} className="w-full rounded-md border border-border bg-surface p-2"><option value="">Без предзаказа (ручная приёмка)</option>{planOptions.map(b=><option key={b.id} value={b.id}>{b.note||b.id} · {total(remainingPlanItems(b,moves))} пар осталось</option>)}</select>{draft.planId?<Button variant="secondary" onClick={()=>{const b=planOptions.find(b=>b.id===draft.planId);if(b)setDraft(d=>({...d,items:remainingPlanItems(b,moves)}))}}>Заполнить по предзаказу</Button>:null}</>:null}
@@ -69,7 +71,7 @@ export function ProductionMovements() {
       <Input aria-label="Дата" type="date" value={draft.date} onChange={e=>setDraft(d=>({...d,date:e.target.value}))}/>
       <Input aria-label="Комментарий" placeholder="Комментарий" value={draft.note} onChange={e=>setDraft(d=>({...d,note:e.target.value}))}/>
       <div className="flex flex-wrap gap-2"><Button variant="secondary" onClick={()=>{setOpen(false);setEditing(undefined)}}>Отмена</Button><Button disabled={!route||!draft.items.length} onClick={()=>setPending({input:{...draft,items:draft.items.map(i=>({...i}))},token:productionToken(state),id:editing})}>Проверить · {total(draft.items)} пар</Button></div>
-    </Card>:null}
+    </Card></div>:null}
     {pending?<div role="dialog" aria-modal="true" className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 p-4"><Card className="max-h-[85dvh] w-full max-w-lg space-y-3 overflow-y-auto p-4"><h3 className="text-lg font-semibold">Вы уверены?</h3><p>{MOVE_LABELS[pending.input.kind]}{pending.input.workerId?" · "+workerName(pending.input.workerId):""} · {total(pending.input.items)} пар</p><div className="divide-y divide-border">{pending.input.items.map(i=><div key={itemKey(i)} className="flex justify-between py-2 text-sm"><span>{colorLabel(i.color)} · размер {i.size}</span><b>{i.qty}</b></div>)}</div>{pending.input.kind==="warehouse-in"?<p className="text-warn text-sm">Только после подтверждения изменится основной склад.</p>:<p className="text-xs text-muted">Основной склад не изменится.</p>}<div className="flex gap-2"><Button variant="secondary" className="flex-1" onClick={()=>setPending(undefined)}>Исправить</Button><Button className="flex-1" onClick={save}>Подтвердить</Button></div></Card></div>:null}
     <Card className="divide-y divide-border"><div className="p-3 font-medium">Журнал перемещений</div>{moves.length===0?<p className="p-3 text-sm text-muted">Нет операций. Внесите фактические начальные остатки.</p>:moves.slice().reverse().map(m=><div key={m.id} className="space-y-1 p-3"><div className="flex justify-between gap-2"><div><b className="text-sm">{MOVE_LABELS[m.kind]} · {total(m.items)} пар</b><p className="text-xs text-muted">{m.date}{m.workerId?" · "+workerName(m.workerId):""}</p></div><Button size="sm" variant="secondary" onClick={()=>edit(m)}>Изменить</Button></div><p className="text-xs text-muted">{m.items.map(i=>colorLabel(i.color)+" "+i.size+"×"+i.qty).join(" · ")}</p>{m.audit?.length?<details className="text-xs text-muted"><summary>История исправлений ({m.audit.length})</summary>{m.audit.map((a,i)=><p key={i}>{a.at.slice(0,16).replace("T"," ")} · было: {a.before.items.map(i=>colorLabel(i.color)+" "+i.size+"×"+i.qty).join(" · ")}</p>)}</details>:null}</div>)}</Card>
   </section>;

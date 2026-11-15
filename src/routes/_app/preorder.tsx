@@ -21,7 +21,7 @@ import {
 import { COLORS, PACK, SIZES, type Color } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { ProductionMovements } from "@/components/production-movements";
-import { replayProduction, remainingPlanItems, physicalProductionQty } from "@/lib/production-moves";
+import { replayProduction, remainingPlanItems, physicalProductionQty, physicalStageQty } from "@/lib/production-moves";
 
 export const Route = createFileRoute("/_app/preorder")({ component: PreorderPage });
 
@@ -45,9 +45,9 @@ function PreorderPage() {
     }),
   ).map((row) => {
     const inProduction = productionQtyFor(productionBatches, row.color, row.size) + physicalProductionQty(physical,row.color,row.size);
-    const cutting = productionQtyFor(productionBatches, row.color, row.size, "cutting");
-    const sewing = productionQtyFor(productionBatches, row.color, row.size, "sewing");
-    const packaging = productionQtyFor(productionBatches, row.color, row.size, "packaging");
+    const cutting = productionQtyFor(productionBatches, row.color, row.size, "cutting") + physicalStageQty(physical,"cutting",row.color,row.size);
+    const sewing = productionQtyFor(productionBatches, row.color, row.size, "sewing") + physicalStageQty(physical,"sewing",row.color,row.size);
+    const packaging = productionQtyFor(productionBatches, row.color, row.size, "packaging") + physicalStageQty(physical,"packaging",row.color,row.size);
     return {
       ...row,
       inProduction,
@@ -72,15 +72,15 @@ function PreorderPage() {
     () => ({
       cutting: activeBatches
         .filter((batch) => batch.stage === "cutting")
-        .reduce((sum, batch) => sum + productionPairs(batch), 0),
+        .reduce((sum, batch) => sum + productionPairs(batch), 0) + physicalStageQty(physical,"cutting"),
       sewing: activeBatches
         .filter((batch) => batch.stage === "sewing")
-        .reduce((sum, batch) => sum + productionPairs(batch), 0),
+        .reduce((sum, batch) => sum + productionPairs(batch), 0) + physicalStageQty(physical,"sewing"),
       packaging: activeBatches
         .filter((batch) => batch.stage === "packaging")
-        .reduce((sum, batch) => sum + productionPairs(batch), 0),
+        .reduce((sum, batch) => sum + productionPairs(batch), 0) + physicalStageQty(physical,"packaging"),
     }),
-    [activeBatches],
+    [activeBatches, physical],
   );
 
   const clientMissing = state.orders
@@ -190,7 +190,7 @@ function PreorderPage() {
         <Stat label="Осталось запустить" value={formatNum(need)} tone="warn" />
         <Stat
           label="В производстве"
-          value={formatNum(stagePairs.cutting + stagePairs.sewing + stagePairs.packaging + [...physical.values()].reduce((n,b)=>n+[...b.values()].reduce((a,v)=>a+v,0),0))}
+          value={formatNum(stagePairs.cutting + stagePairs.sewing + stagePairs.packaging)}
         />
         <Stat label="Всего дефицита" value={formatNum(rawNeed)} />
       </div>
@@ -307,7 +307,7 @@ function PreorderPage() {
           <div className="flex justify-between"><Badge tone={productionStageTone(batch.stage)}>{batch.stage==="cutting"?"Осталось принять крой":productionStageLabel(batch.stage)}</Badge><b>{formatNum(productionPairs(batch))} пар</b></div>
           <p className="text-xs text-muted">{batch.items.map(i=>colorLabel(i.color)+" "+i.size+"×"+i.qty).join(" · ")}</p>
           <p className="text-xs text-muted">{batch.stage==="cutting"?"Примите фактическое количество в журнале, выбрав этот предзаказ.":"Старая партия: сверьте фактическое место и количество, затем внесите начальные остатки. Автоприёмка отключена."}</p>
-          <Button variant="secondary" onClick={()=>cancelBatch(batch.id)}>Отменить после сверки</Button>
+          {!moves.some(m=>m.planId===batch.id)?<Button variant="secondary" onClick={()=>cancelBatch(batch.id)}>Отменить после сверки</Button>:<p className="text-xs text-muted">Частично принят — исправление факта через журнал.</p>}
         </Card>)}
       </section>:null}
 

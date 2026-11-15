@@ -92,3 +92,17 @@ export function validateMoveInput(state: WarehouseState, input: ProductionMoveIn
 export function physicalProductionQty(balances: Balances, color: OrderItem["color"], size: number): number {
   return [...balances.values()].reduce((n,b)=>n+(b.get(itemKey({color,size}))??0),0);
 }
+
+export function stageLocation(stage: "cutting" | "sewing" | "packaging", location: string): boolean {
+  if (stage === "cutting") return location === "cut";
+  if (stage === "sewing") return location === "sewn" || location.startsWith("sewing:");
+  return location === "packed" || location.startsWith("packaging:");
+}
+export function physicalStageQty(balances: Balances, stage: "cutting" | "sewing" | "packaging", color?: OrderItem["color"], size?: number): number {
+  let sum = 0;
+  for (const [location,bucket] of balances) {
+    if (!stageLocation(stage,location)) continue;
+    sum += color !== undefined && size !== undefined ? (bucket.get(itemKey({color,size}))??0) : [...bucket.values()].reduce((a,b)=>a+b,0);
+  }
+  return sum;
+}
