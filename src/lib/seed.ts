@@ -39,4 +39,5 @@ export const SEED: WarehouseState = {
   payables: [],
   workers: [],
   productionBatches: [],
+  productionMoves: [],
 };

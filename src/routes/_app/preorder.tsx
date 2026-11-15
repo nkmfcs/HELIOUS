@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { CheckCircle2, ChevronRight, PackageCheck, Scissors, Shirt, X } from "lucide-react";
+import { Scissors, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, Stat } from "@/components/ui/card";
 import { Input, Label } from "@/components/ui/input";
@@ -16,40 +16,35 @@ import {
   productionPairs,
   productionQtyFor,
   productionStageLabel,
-  productionStageRole,
   productionStageTone,
 } from "@/lib/production";
-import { COLORS, PACK, SIZES, type Color, type WorkerRole } from "@/lib/types";
+import { COLORS, PACK, SIZES, type Color } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { ProductionMovements } from "@/components/production-movements";
+import { replayProduction, remainingPlanItems, physicalProductionQty } from "@/lib/production-moves";
 
 export const Route = createFileRoute("/_app/preorder")({ component: PreorderPage });
 
 type Selection = Record<string, number>;
 
-const ROLE_BY_STAGE: Record<"cutting" | "sewing" | "packaging", WorkerRole> = {
-  cutting: "cutting",
-  sewing: "sewing",
-  packaging: "packaging",
-};
-
 function PreorderPage() {
   const state = useWarehouse();
   const setLowThreshold = useWarehouse((s) => s.setLowThreshold);
   const createProductionBatch = useWarehouse((s) => s.createProductionBatch);
-  const advanceProductionBatch = useWarehouse((s) => s.advanceProductionBatch);
   const cancelProductionBatch = useWarehouse((s) => s.cancelProductionBatch);
   const [selection, setSelection] = useState<Selection>({});
   const [showAll, setShowAll] = useState(false);
-  const [workerSelection, setWorkerSelection] = useState<Record<string, string>>({});
 
-  const productionBatches = state.productionBatches ?? [];
+  const moves = state.productionMoves ?? [];
+  const physical = replayProduction(moves).balances;
+  const productionBatches = (state.productionBatches ?? []).map(b=>b.stage==="cutting"?{...b,items:remainingPlanItems(b,moves)}:b).filter(b=>b.items.length>0);
   const allRows = COLORS.flatMap((color) =>
     SIZES.map((size) => {
       const pairs = state.stock[color][size] ?? 0;
       return { color, size, pairs, need: Math.max(0, state.lowThreshold - pairs) };
     }),
   ).map((row) => {
-    const inProduction = productionQtyFor(productionBatches, row.color, row.size);
+    const inProduction = productionQtyFor(productionBatches, row.color, row.size) + physicalProductionQty(physical,row.color,row.size);
     const cutting = productionQtyFor(productionBatches, row.color, row.size, "cutting");
     const sewing = productionQtyFor(productionBatches, row.color, row.size, "sewing");
     const packaging = productionQtyFor(productionBatches, row.color, row.size, "packaging");
@@ -127,6 +122,7 @@ function PreorderPage() {
       const [color, size] = key.split(":");
       return { color: color as Color, size: Number(size), qty };
     });
+    if (!window.confirm(`Отправить на крой ${selectedCount} пар?\n${items.map(i=>colorLabel(i.color)+" · р."+i.size+" × "+i.qty).join("\n")}`)) return;
     const id = createProductionBatch({ items, note: "Предзаказ → крой" });
     if (!id) {
       toast.error("Не удалось отправить выбранные позиции на крой");
@@ -169,20 +165,8 @@ function PreorderPage() {
     );
   }
 
-  function advanceBatch(batchId: string, workerId?: string) {
-    const ok = advanceProductionBatch({ batchId, workerId: workerId || undefined });
-    if (!ok) toast.error("Не удалось перевести партию на следующий этап");
-    else {
-      setWorkerSelection((current) => {
-        const next = { ...current };
-        delete next[batchId];
-        return next;
-      });
-      toast.success("Этап производства обновлён");
-    }
-  }
-
   function cancelBatch(batchId: string) {
+    if (!window.confirm("Отменить этот предзаказ? Остатки склада не изменятся.")) return;
     if (!cancelProductionBatch(batchId)) {
       toast.error("Не удалось отменить партию");
       return;
@@ -199,12 +183,14 @@ function PreorderPage() {
         </p>
       </div>
 
+      <ProductionMovements />
+
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Позиций ниже порога" value={String(rows.length)} />
         <Stat label="Осталось запустить" value={formatNum(need)} tone="warn" />
         <Stat
           label="В производстве"
-          value={formatNum(stagePairs.cutting + stagePairs.sewing + stagePairs.packaging)}
+          value={formatNum(stagePairs.cutting + stagePairs.sewing + stagePairs.packaging + [...physical.values()].reduce((n,b)=>n+[...b.values()].reduce((a,v)=>a+v,0),0))}
         />
         <Stat label="Всего дефицита" value={formatNum(rawNeed)} />
       </div>
@@ -315,111 +301,22 @@ function PreorderPage() {
         ) : null}
       </div>
 
-      {activeBatches.length ? (
-        <section className="space-y-3">
-          <div>
-            <h2 className="text-lg font-medium">Производство в работе</h2>
-            <p className="text-sm text-muted">Крой → швейки → упаковка → склад.</p>
-          </div>
-
-          <div className="space-y-3">
-            {activeBatches
-              .slice()
-              .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-              .map((batch) => {
-                const role = productionStageRole(batch.stage) ?? ROLE_BY_STAGE.cutting;
-                const workers = state.workers.filter((worker) => worker.role === role);
-                const assignedWorkerId = workerSelection[batch.id] ?? "";
-                return (
-                  <Card key={batch.id} className="p-4">
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Badge tone={productionStageTone(batch.stage)}>
-                            {productionStageLabel(batch.stage)}
-                          </Badge>
-                          <span className="font-mono text-sm">
-                            {formatNum(productionPairs(batch))} пар
-                          </span>
-                          <span className="text-xs text-muted">
-                            {formatDate(batch.createdAt.slice(0, 10))}
-                          </span>
-                        </div>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {batch.items.map((item) => (
-                            <span
-                              key={`${batch.id}-${itemKey(item)}`}
-                              className="rounded-md bg-elevated px-2 py-1 text-xs"
-                            >
-                              {colorLabel(item.color)} · р.{item.size} × {item.qty}
-                            </span>
-                          ))}
-                        </div>
-                        {batch.note ? (
-                          <p className="mt-3 text-xs text-muted">{batch.note}</p>
-                        ) : null}
-                      </div>
-
-                      <div className="flex flex-col gap-2 lg:min-w-72 lg:max-w-xs">
-                        {workers.length ? (
-                          <select
-                            value={assignedWorkerId}
-                            onChange={(e) =>
-                              setWorkerSelection((current) => ({
-                                ...current,
-                                [batch.id]: e.target.value,
-                              }))
-                            }
-                            className="h-9 rounded-sm border border-border bg-surface px-3 text-sm outline-none"
-                          >
-                            <option value="">Ответственный · не выбран</option>
-                            {workers.map((worker) => (
-                              <option key={worker.id} value={worker.id}>
-                                {worker.name}
-                              </option>
-                            ))}
-                          </select>
-                        ) : null}
-
-                        <div className="flex gap-2">
-                          <Button
-                            className="flex-1"
-                            onClick={() => advanceBatch(batch.id, assignedWorkerId)}
-                          >
-                            {batch.stage === "cutting" ? <Shirt className="size-4" /> : null}
-                            {batch.stage === "sewing" ? <PackageCheck className="size-4" /> : null}
-                            {batch.stage === "packaging" ? (
-                              <CheckCircle2 className="size-4" />
-                            ) : null}
-                            {batch.stage === "cutting" ? "Забрал крой → швеям" : null}
-                            {batch.stage === "sewing" ? "Забрал у швей → упаковка" : null}
-                            {batch.stage === "packaging" ? "Упаковка готова → склад" : null}
-                            <ChevronRight className="size-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="iconSm"
-                            title="Отменить партию"
-                            onClick={() => cancelBatch(batch.id)}
-                          >
-                            <X className="size-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </Card>
-                );
-              })}
-          </div>
-        </section>
-      ) : null}
+      {activeBatches.length ? <section className="space-y-3">
+        <h2 className="text-lg font-medium">Предзаказы и старые партии</h2>
+        {activeBatches.map(batch=><Card key={batch.id} className="space-y-2 p-3">
+          <div className="flex justify-between"><Badge tone={productionStageTone(batch.stage)}>{batch.stage==="cutting"?"Осталось принять крой":productionStageLabel(batch.stage)}</Badge><b>{formatNum(productionPairs(batch))} пар</b></div>
+          <p className="text-xs text-muted">{batch.items.map(i=>colorLabel(i.color)+" "+i.size+"×"+i.qty).join(" · ")}</p>
+          <p className="text-xs text-muted">{batch.stage==="cutting"?"Примите фактическое количество в журнале, выбрав этот предзаказ.":"Старая партия: сверьте фактическое место и количество, затем внесите начальные остатки. Автоприёмка отключена."}</p>
+          <Button variant="secondary" onClick={()=>cancelBatch(batch.id)}>Отменить после сверки</Button>
+        </Card>)}
+      </section>:null}
 
       {completedBatches.length ? (
         <section className="space-y-3">
           <div>
             <h2 className="text-lg font-medium">Последние завершённые партии</h2>
             <p className="text-sm text-muted">
-              После этапа «Упаковка» количество автоматически добавляется на склад.
+              История старых завершённых партий. Новая приёмка отражается в журнале.
             </p>
           </div>
           <Card className="divide-y divide-border">

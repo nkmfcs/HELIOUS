@@ -155,6 +155,23 @@ export function workerRoleLabel(role: WorkerRole): string {
   return "Другое";
 }
 
+export type ProductionMoveKind =
+  | "cut-in" | "cut-out" | "sewn-in" | "pack-out" | "packed-in" | "warehouse-in" | "opening";
+export type ProductionMoveInput = {
+  kind: ProductionMoveKind;
+  items: OrderItem[];
+  workerId?: string;
+  planId?: string;
+  openingTo?: string;
+  note: string;
+  date: string;
+};
+export type ProductionMove = ProductionMoveInput & {
+  id: string;
+  at: string;
+  audit?: { at: string; before: ProductionMoveInput }[];
+};
+
 export type WarehouseState = {
   stock: Stock;
   clients: Client[];
@@ -171,4 +188,5 @@ export type WarehouseState = {
   payables: Payable[];
   workers: Worker[];
   productionBatches: ProductionBatch[];
+  productionMoves?: ProductionMove[];
 };

@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, Group, SectionLabel, Stat } from "@/components/ui/card";
 import { Input, Label, Textarea } from "@/components/ui/input";
+import { ProductionWorkerBalance } from "@/components/production-movements";
 import { WorkerAccrualEditor } from "@/components/worker-accrual-editor";
 import { formatCompact, formatDate, formatNum, todayISO } from "@/lib/format";
 import { useWarehouse } from "@/lib/store";
@@ -280,6 +281,8 @@ function WorkerPage() {
           <Stat label="К выплате" value={formatCompact(owed)} tone={owed > 0 ? "danger" : "ok"} />
         </div>
       </Card>
+
+      <ProductionWorkerBalance workerId={worker.id} />
 
       <div className="grid grid-cols-3 gap-3">
         <button
