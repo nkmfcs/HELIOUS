@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Package, Layers } from "lucide-react";
 import { toast } from "sonner";
 import { BoxBadge } from "@/components/box-badge";
 import { ColorPills } from "@/components/color-pills";
@@ -104,8 +104,8 @@ function StockPage() {
       <ColorPills value={color} onChange={setColor} />
 
       <div className="grid grid-cols-2 gap-3">
-        <Stat label="Пар" value={formatNum(total)} />
-        <Stat label="Упаковок" value={formatNum(Math.floor(total / PACK))} />
+        <div className="helious-metric"><Package className="mb-2 size-5 text-accent"/><Stat label="Пар" value={formatNum(total)} /></div>
+        <div className="helious-metric"><Layers className="mb-2 size-5 text-sky-600"/><Stat label="Упаковок" value={formatNum(Math.floor(total / PACK))} /></div>
       </div>
 
       {incomingOpen ? (
@@ -166,7 +166,7 @@ function StockPage() {
       <Card className="overflow-hidden">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-border text-xs uppercase tracking-wide text-subtle">
+            <tr className="border-b border-border bg-bg/55 text-xs uppercase tracking-wide text-muted">
               <th className="px-4 py-3 text-left font-medium">Размер</th>
               <th className="px-2 py-3 text-center font-medium">Кор.</th>
               <th className="px-2 py-3 text-center font-medium">Пар</th>

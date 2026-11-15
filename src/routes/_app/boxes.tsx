@@ -17,7 +17,7 @@ function BoxesPage() {
   const [color, setColor] = useState<Color>("white");
 
   return (
-    <div className="space-y-7">
+    <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-semibold tracking-tight">Коробки</h1>
         <p className="mt-1 text-sm text-muted">
@@ -34,7 +34,7 @@ function BoxesPage() {
           }).filter((p) => p.sizes.length > 0);
           const total = parts.reduce((n, p) => n + p.pairs, 0);
           return (
-            <Group key={box}>
+            <Group key={box} className="border-t-2 border-accent/20">
               <div className="flex items-baseline justify-between px-4 pb-2 pt-4">
                 <div className="text-lg font-semibold">#{box}</div>
                 <div className="text-sm text-muted">{formatNum(total)} пар</div>

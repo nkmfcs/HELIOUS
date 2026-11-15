@@ -106,10 +106,11 @@ function ClientsPage() {
                 <Link
                   to="/clients/$clientId"
                   params={{ clientId: c.id }}
-                  className="flex items-center justify-between px-4 py-3.5"
+                  className="helious-press flex items-center gap-3 px-4 py-3.5"
                 >
-                  <div>
-                    <div className="text-sm font-medium">
+                  <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-accent/10 text-sm font-semibold text-accent">{c.name.trim().slice(0,1).toUpperCase()}</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="break-words text-sm font-medium">
                       {c.name}
                       {c.shop ? <span className="text-muted"> · {c.shop}</span> : null}
                     </div>
@@ -121,7 +122,7 @@ function ClientsPage() {
                   {c.debt > 0 ? (
                     <Badge tone="danger">{formatSum(c.debt)}</Badge>
                   ) : (
-                    <Badge tone="ok">чисто</Badge>
+                    <Badge tone="ok">Без долга</Badge>
                   )}
                 </Link>
               </div>

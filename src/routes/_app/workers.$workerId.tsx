@@ -173,7 +173,7 @@ function WorkerPage() {
 
       <Card className="p-5">
         <div className="flex items-start gap-4">
-          <span className="grid size-14 shrink-0 place-items-center rounded-full bg-accent text-xl font-semibold text-accent-fg">
+          <span className="grid size-14 shrink-0 place-items-center rounded-xl bg-accent/10 text-xl font-semibold text-accent">
             {worker.name.trim().slice(0, 1).toUpperCase()}
           </span>
           <div className="min-w-0 flex-1">

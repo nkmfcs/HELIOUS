@@ -1,15 +1,15 @@
 import { cn } from "@/lib/utils";
 
 export function Card({ className, children }: { className?: string; children: React.ReactNode }) {
-  return <div className={cn("rounded-lg bg-surface", className)}>{children}</div>;
+  return <div className={cn("helious-card rounded-lg bg-surface", className)}>{children}</div>;
 }
 
 export function Group({ className, children }: { className?: string; children: React.ReactNode }) {
-  return <div className={cn("overflow-hidden rounded-lg bg-surface", className)}>{children}</div>;
+  return <div className={cn("helious-card overflow-hidden rounded-lg bg-surface", className)}>{children}</div>;
 }
 
 export function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <div className="mb-2 px-1 text-xs font-medium text-subtle">{children}</div>;
+  return <div className="mb-2 px-1 text-sm font-semibold text-muted">{children}</div>;
 }
 
 export function Stat({
@@ -34,7 +34,7 @@ export function Stat({
   return (
     <div className="min-w-0">
       <div className="text-xs text-muted">{label}</div>
-      <div className={cn("mt-1 text-2xl font-semibold leading-none tabular", color)}>{value}</div>
+      <div className={cn("mt-1 break-words text-2xl font-semibold leading-tight tabular", color)}>{value}</div>
       {hint ? <div className="mt-1.5 text-xs text-subtle">{hint}</div> : null}
     </div>
   );

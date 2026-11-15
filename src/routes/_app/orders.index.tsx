@@ -51,7 +51,7 @@ function OrdersPage() {
         </Button>
       </div>
 
-      <div className="flex gap-1 rounded-lg bg-surface p-1">
+      <div className="flex gap-1 rounded-lg bg-elevated p-1">
         {tabs.map((t) => (
           <button
             key={t.id}
@@ -59,7 +59,7 @@ function OrdersPage() {
             onClick={() => setFilter(t.id)}
             className={
               filter === t.id
-                ? "h-9 flex-1 rounded-md bg-elevated text-sm font-medium"
+                ? "h-9 flex-1 rounded-md bg-surface text-sm font-medium text-accent shadow-sm"
                 : "h-9 flex-1 rounded-md text-sm text-muted"
             }
           >
@@ -91,7 +91,7 @@ function OrdersPage() {
                   <Link
                     to="/orders/$orderId"
                     params={{ orderId: o.id }}
-                    className="block px-4 py-3.5"
+                    className="helious-press block px-4 py-3.5"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>

@@ -52,7 +52,7 @@ function MorePage() {
           onClick={() => void saveNow()}
           className="flex w-full items-center gap-3 px-4 py-3.5 text-left"
         >
-          <span className="grid size-9 place-items-center rounded-md bg-bg">
+          <span className="grid size-9 place-items-center rounded-md bg-accent/10 text-accent">
             <Cloud className="size-4" />
           </span>
           <div>
@@ -106,8 +106,8 @@ function MorePage() {
           return (
             <div key={l.to}>
               {i > 0 ? <div className="ml-4 h-px bg-border" /> : null}
-              <Link to={l.to} className="flex items-center gap-3 px-4 py-3.5">
-                <span className="grid size-9 place-items-center rounded-md bg-bg">
+              <Link to={l.to} className="helious-press flex items-center gap-3 px-4 py-3.5">
+                <span className="grid size-9 place-items-center rounded-md bg-accent/10 text-accent">
                   <Icon className="size-4" />
                 </span>
                 <div>

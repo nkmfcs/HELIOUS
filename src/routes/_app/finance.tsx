@@ -83,19 +83,19 @@ function FinancePage() {
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Себестоимость" value={formatNum(cost)} />
-        <Stat label="Прибыль / пару" value={formatNum(profit)} tone="ok" />
-        <Stat
+        <div className="helious-metric"><Stat label="Себестоимость" value={formatNum(cost)} /></div>
+        <div className="helious-metric"><Stat label="Прибыль / пару" value={formatNum(profit)} tone="ok" /></div>
+        <div className="helious-metric"><Stat
           label="Склад"
           value={formatCompact(warehouseValue(state))}
           hint={`${formatNum(pairs)} пар`}
-        />
-        <Stat label="Потенциал" value={formatCompact(revenuePotential(state))} />
+        /></div>
+        <div className="helious-metric"><Stat label="Потенциал" value={formatCompact(revenuePotential(state))} /></div>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <Stat label="Все долги" value={formatCompact(totalDebt(state))} tone="danger" />
-        <Stat label="Получено всего" value={formatCompact(totalPaid(state))} tone="ok" />
+        <div className="helious-metric"><Stat label="Все долги" value={formatCompact(totalDebt(state))} tone="danger" /></div>
+        <div className="helious-metric"><Stat label="Получено всего" value={formatCompact(totalPaid(state))} tone="ok" /></div>
       </div>
 
       <Card className="space-y-4 p-4">

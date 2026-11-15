@@ -125,10 +125,10 @@ function OrderPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <Stat label="Пар" value={formatNum(order.totalPairs)} />
-        <Stat label="Сумма" value={formatSum(order.totalSum)} />
-        <Stat label="Оплачено" value={formatSum(order.paidSum)} tone="ok" />
-        <Stat label="Остаток" value={formatSum(debt)} tone={debt > 0 ? "danger" : "ok"} />
+        <div className="helious-metric"><Stat label="Пар" value={formatNum(order.totalPairs)} /></div>
+        <div className="helious-metric"><Stat label="Сумма" value={formatSum(order.totalSum)} /></div>
+        <div className="helious-metric"><Stat label="Оплачено" value={formatSum(order.paidSum)} tone="ok" /></div>
+        <div className="helious-metric"><Stat label="Остаток" value={formatSum(debt)} tone={debt > 0 ? "danger" : "ok"} /></div>
       </div>
 
       {order.status === "shipped" && debt > 0 ? (

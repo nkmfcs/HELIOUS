@@ -106,18 +106,18 @@ function CashPage() {
   }
 
   return (
-    <div className="space-y-7">
+    <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-semibold tracking-tight">Касса</h1>
         <p className="mt-1 text-sm text-muted">Что пришло, что ушло, сколько на руках</p>
       </div>
 
       <Group>
-        <div className="px-4 pb-4 pt-5">
+        <div className="helious-hero px-4 pb-4 pt-5">
           <div
             className={cn(
               "text-4xl font-semibold tabular leading-none",
-              bal < 0 ? "text-danger" : "text-fg",
+              bal < 0 ? "text-danger" : "text-accent",
             )}
           >
             {formatNum(bal)}
@@ -154,7 +154,7 @@ function CashPage() {
 
       {debtors.length > 0 ? (
         <section>
-          <SectionLabel>Кто должен — нажми и закрой</SectionLabel>
+          <SectionLabel>Долги клиентов</SectionLabel>
           <Group>
             {debtors.map((c, i) => (
               <div key={c.id}>
@@ -189,7 +189,7 @@ function CashPage() {
 
       {weOwe.length > 0 ? (
         <section>
-          <SectionLabel>Кому должны мы</SectionLabel>
+          <SectionLabel>Наши обязательства</SectionLabel>
           <Group>
             {weOwe.map((p, i) => (
               <div key={p.id}>
