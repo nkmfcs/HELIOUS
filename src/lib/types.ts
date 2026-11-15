@@ -132,6 +132,7 @@ export type Payable = {
   pairs?: number;
   /** Ставка за пару на момент начисления, сум. */
   rate?: number;
+  productionMoveId?: string;
 };
 
 export const WORKER_ROLES = ["sewing", "cutting", "packaging", "other"] as const;
@@ -155,6 +156,25 @@ export function workerRoleLabel(role: WorkerRole): string {
   return "Другое";
 }
 
+export type ProductionMoveKind =
+  | "cut-in" | "cut-out" | "sewn-in" | "pack-out" | "packed-in" | "warehouse-in" | "opening";
+export type ProductionMoveInput = {
+  kind: ProductionMoveKind;
+  items: OrderItem[];
+  workerId?: string;
+  planId?: string;
+  openingTo?: string;
+  /** Ставка за принятую пару на момент операции. 0 — без начисления. */
+  rate?: number;
+  note: string;
+  date: string;
+};
+export type ProductionMove = ProductionMoveInput & {
+  id: string;
+  at: string;
+  audit?: { at: string; before: ProductionMoveInput }[];
+};
+
 export type WarehouseState = {
   stock: Stock;
   clients: Client[];
@@ -171,4 +191,5 @@ export type WarehouseState = {
   payables: Payable[];
   workers: Worker[];
   productionBatches: ProductionBatch[];
+  productionMoves?: ProductionMove[];
 };

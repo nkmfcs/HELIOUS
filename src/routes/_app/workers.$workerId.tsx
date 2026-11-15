@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, Group, SectionLabel, Stat } from "@/components/ui/card";
 import { Input, Label, Textarea } from "@/components/ui/input";
+import { ProductionWorkerBalance } from "@/components/production-movements";
 import { WorkerAccrualEditor } from "@/components/worker-accrual-editor";
 import { formatCompact, formatDate, formatNum, todayISO } from "@/lib/format";
 import { useWarehouse } from "@/lib/store";
@@ -119,6 +120,7 @@ function WorkerPage() {
   }
 
   function recordPairs() {
+    if (!window.confirm("Записать только ручное начисление? Если пары приняты через производство, повторно начислять не нужно.")) return;
     const error = addWorkerPairs(workerId, pairsCount, pairsNote, pairsDate);
     if (error) {
       toast(error);
@@ -281,6 +283,8 @@ function WorkerPage() {
         </div>
       </Card>
 
+      <ProductionWorkerBalance workerId={worker.id} />
+
       <div className="grid grid-cols-3 gap-3">
         <button
           type="button"
@@ -295,7 +299,7 @@ function WorkerPage() {
           <div
             className={cn("mt-1 text-xs", mode === "pairs" ? "text-accent-fg/70" : "text-muted")}
           >
-            Долг по ставке за пару
+            Ручное начисление без движения
           </div>
         </button>
         <button
@@ -490,7 +494,7 @@ function WorkerPage() {
                       variant="secondary"
                       aria-label={`Редактировать начисление: ${entry.note || formatNum(entry.amount)}`}
                       onClick={() =>
-                        setEditingAccrual(editingAccrual?.id === entry.id ? null : { ...entry })
+                        entry.productionMoveId ? toast.error("Исправьте приёмку в журнале производства") : setEditingAccrual(editingAccrual?.id === entry.id ? null : { ...entry })
                       }
                     >
                       <Pencil className="size-4" />

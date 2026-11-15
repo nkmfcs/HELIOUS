@@ -16,15 +16,16 @@ import {
   type WorkerRole,
   type ProductionBatch,
   type ProductionStage,
+  type ProductionMoveInput,
+  type ProductionMove,
 } from "./types";
 import { colorLabel, emptySizeMap, todayISO, uid } from "./format";
 import {
-  itemMap,
+  manualProductionItems,
   normalizeProductionBatches,
-  productionQtyFor,
   isActiveProductionStage,
-  productionStageRole,
 } from "./production";
+import { productionToken, replayProduction, validateMoveInput, earnsForMove, reconcileProductionPayable, balanceItems, workerLocation } from "./production-moves";
 import { orderDebt } from "./stats";
 import { buildPairsAccrual, cleanWholeNumber } from "./worker-pay";
 import {
@@ -153,6 +154,7 @@ type Actions = {
   setLowThreshold: (n: number) => void;
   setBox: (color: Color, size: number, box: BoxId) => void;
   createProductionBatch: (input: { items: OrderItem[]; note?: string }) => string | null;
+  confirmProductionMove: (input: ProductionMoveInput, expected: string, editingId?: string) => string | null;
   advanceProductionBatch: (input: {
     batchId: string;
     nextStage?: ProductionStage;
@@ -194,6 +196,7 @@ export function snapshotOf(s: WarehouseState): WarehouseState {
     payables: s.payables ?? [],
     workers: s.workers ?? [],
     productionBatches: s.productionBatches ?? [],
+    productionMoves: s.productionMoves ?? [],
   };
 }
 
@@ -757,6 +760,7 @@ export const useWarehouse = create<Store>()(
       updateWorkerAccrual: (id, patch, expected) => {
         const row = (get().payables ?? []).find((entry) => entry.id === id);
         if (!row || !row.workerId) return "Начисление работника не найдено";
+        if (row.productionMoveId) return "Исправьте связанную приёмку в журнале производства";
         if (row.amount <= row.paidSum) return "Начисление уже закрыто";
         if (
           (["id", "workerId", "person", "amount", "paidSum", "date", "note"] as const).some(
@@ -836,6 +840,11 @@ export const useWarehouse = create<Store>()(
 
       updateWorker: (id, patch) => {
         if (patch.name !== undefined && !patch.name.trim()) return;
+        const current = get().workers.find(w=>w.id===id);
+        if (current && patch.role && current.role!==patch.role && (current.role==="sewing"||current.role==="packaging")) {
+          const {balances}=replayProduction(get().productionMoves ?? []);
+          if (balanceItems(balances,workerLocation(current.role,id)).length) return;
+        }
         set((s) => ({
           workers: (s.workers ?? []).map((worker) =>
             worker.id === id
@@ -946,24 +955,8 @@ export const useWarehouse = create<Store>()(
         })),
 
       createProductionBatch: ({ items, note = "" }) => {
-        const requested = itemMap(items);
-        if (!requested.size) return null;
-        const state = get();
-        const normalized: OrderItem[] = [];
-        for (const [key, requestedQty] of requested.entries()) {
-          const [color, sizeText] = key.split(":");
-          const size = Number(sizeText);
-          const stock = state.stock[color as (typeof COLORS)[number]]?.[size] ?? 0;
-          const inProduction = productionQtyFor(
-            state.productionBatches,
-            color as (typeof COLORS)[number],
-            size,
-          );
-          const remainingNeed = Math.max(0, state.lowThreshold - stock - inProduction);
-          const qty = Math.min(requestedQty, remainingNeed);
-          if (qty > 0) normalized.push({ color: color as (typeof COLORS)[number], size, qty });
-        }
-        if (!normalized.length) return null;
+        const normalized = manualProductionItems(items);
+        if (!normalized) return null;
 
         const now = new Date().toISOString();
         const id = uid("prod");
@@ -980,100 +973,63 @@ export const useWarehouse = create<Store>()(
         return id;
       },
 
-      advanceProductionBatch: ({ batchId, nextStage, workerId }) => {
+      // Legacy one-click completion is disabled: only confirmed movements may receive stock.
+      advanceProductionBatch: () => false,
+
+      confirmProductionMove: (input, expected, editingId) => {
         const state = get();
-        const batch = state.productionBatches.find((entry) => entry.id === batchId);
-        if (!batch || !isActiveProductionStage(batch.stage)) return false;
-        const expected: Record<ProductionStage, ProductionStage> = {
-          cutting: "sewing",
-          sewing: "packaging",
-          packaging: "done",
-          done: "done",
-          cancelled: "cancelled",
-        };
-        const target = nextStage ?? expected[batch.stage];
-        if (target !== expected[batch.stage]) return false;
-        if (workerId) {
-          const worker = state.workers.find((entry) => entry.id === workerId);
-          if (!worker || worker.role !== productionStageRole(batch.stage)) return false;
+        if (productionToken(state) !== expected) return "Остатки изменились. Проверьте операцию заново.";
+        const error = validateMoveInput(state, input);
+        if (error) return error;
+        const items = manualProductionItems(input.items);
+        if (!items) return "Укажите количество";
+        const oldMoves = state.productionMoves ?? [];
+        const previous = editingId ? oldMoves.find(m=>m.id===editingId) : undefined;
+        if (editingId && !previous) return "Операция не найдена";
+        if (previous && previous.kind !== input.kind) return "Тип сохранённой операции нельзя изменить";
+        const at = new Date().toISOString();
+        const before = previous ? { kind: previous.kind, items: previous.items, workerId: previous.workerId, planId: previous.planId, openingTo: previous.openingTo, rate: previous.rate, note: previous.note, date: previous.date } : undefined;
+        const rate = earnsForMove(input.kind) ? (input.rate ?? (previous?.workerId===input.workerId ? previous?.rate : undefined) ?? state.workers.find(w=>w.id===input.workerId)?.rate) : undefined;
+        const move: ProductionMove = { ...input, rate, items, id: previous?.id ?? uid("pm"), at: previous?.at ?? at, audit: before ? [...(previous?.audit ?? []), {at,before}] : [] };
+        const moves = previous ? oldMoves.map(m=>m.id===previous.id ? move : m) : [...oldMoves,move];
+        const replay = replayProduction(moves);
+        if (replay.error) return replay.error;
+        const payroll = reconcileProductionPayable(state,move);
+        if (payroll.error) return payroll.error;
+        if (move.kind !== "warehouse-in") {
+          set({productionMoves:moves,payables:payroll.payables});
+          return null;
         }
-
-        const now = new Date().toISOString();
-        const updated: ProductionBatch = {
-          ...batch,
-          stage: target,
-          updatedAt: now,
-          history: [...batch.history, { stage: target, at: now, workerId }],
-          ...(batch.stage === "cutting"
-            ? { cuttingWorkerId: workerId ?? batch.cuttingWorkerId }
-            : {}),
-          ...(batch.stage === "sewing" ? { sewingWorkerId: workerId ?? batch.sewingWorkerId } : {}),
-          ...(batch.stage === "packaging"
-            ? { packagingWorkerId: workerId ?? batch.packagingWorkerId }
-            : {}),
-        };
-
-        if (target !== "done") {
-          set({
-            productionBatches: state.productionBatches.map((entry) =>
-              entry.id === batchId ? updated : entry,
-            ),
-          });
-          return true;
+        const stock = normalizeStock(state.stock);
+        if (previous?.kind === "warehouse-in") {
+          for (const item of previous.items) {
+            stock[item.color][item.size] -= item.qty;
+          }
         }
-
-        const nextStock = { ...state.stock };
-        const byColor = new Map<(typeof COLORS)[number], { size: number; qty: number }[]>();
-        for (const item of batch.items) {
-          nextStock[item.color] = {
-            ...nextStock[item.color],
-            [item.size]: (nextStock[item.color][item.size] ?? 0) + item.qty,
-          };
-          const rows = byColor.get(item.color) ?? [];
-          rows.push({ size: item.size, qty: item.qty });
-          byColor.set(item.color, rows);
+        if (move.kind === "warehouse-in") {
+          for (const item of move.items) stock[item.color][item.size] += item.qty;
         }
-
-        const incoming = [...state.incoming];
-        const events = [...state.events];
-        for (const [color, rows] of byColor.entries()) {
-          const incomingId = uid("in");
-          const totalPairs = rows.reduce((sum, row) => sum + row.qty, 0);
-          incoming.push({
-            id: incomingId,
-            date: now.slice(0, 10),
-            color,
-            items: rows,
-            totalPairs,
-            note: batch.note || `Производство · ${batch.id}`,
-            createdAt: now,
-          });
-          events.push({
-            id: uid("ev"),
-            date: now.slice(0, 10),
-            type: "incoming",
-            pairs: totalPairs,
-            sum: 0,
-            note: `Готовый крой → склад: ${batch.id}`,
-            incomingId,
-          });
+        if (COLORS.some(c=>SIZES.some(s=>stock[c][s]<0 || !Number.isSafeInteger(stock[c][s])))) return "Нельзя исправить приход: часть продукции уже ушла со склада";
+        const prefix = "production-move:" + move.id + ":";
+        const incoming = state.incoming.filter(row=>!row.id.startsWith(prefix));
+        const events = state.events.filter(event=>!event.incomingId?.startsWith(prefix));
+        if (move.kind === "warehouse-in") for (const color of COLORS) {
+          const rows = items.filter(item=>item.color===color).map(({size,qty})=>({size,qty}));
+          if (!rows.length) continue;
+          const incomingId = prefix + color;
+          const totalPairs = rows.reduce((sum,row)=>sum+row.qty,0);
+          incoming.push({id:incomingId,date:move.date,color,items:rows,totalPairs,note:move.note || "Приёмка производства",createdAt:move.at});
+          events.push({id:incomingId+":event",date:move.date,type:"incoming",pairs:totalPairs,sum:0,note:"Подтверждённая приёмка продукции",incomingId});
         }
-
-        set({
-          stock: nextStock,
-          incoming,
-          events,
-          productionBatches: state.productionBatches.map((entry) =>
-            entry.id === batchId ? updated : entry,
-          ),
-        });
-        return true;
+        set({productionMoves:moves,stock,incoming,events});
+        return null;
       },
 
       cancelProductionBatch: (batchId) => {
         const state = get();
         const batch = state.productionBatches.find((entry) => entry.id === batchId);
         if (!batch || !isActiveProductionStage(batch.stage)) return false;
+        if ((state.productionMoves ?? []).some(m=>m.planId===batchId)) return false;
         const now = new Date().toISOString();
         set({
           productionBatches: state.productionBatches.map((entry) =>
@@ -1103,6 +1059,7 @@ export const useWarehouse = create<Store>()(
         // An exported backup must be restored exactly. Historical seed fixes
         // belong to the persisted-store migration below; applying them during
         // import can unexpectedly replace a user's current stock.
+        if (d.productionMoves !== undefined && (!Array.isArray(d.productionMoves) || replayProduction(d.productionMoves).error)) return false;
         const next: WarehouseState = {
           stock: normalizeStock(d.stock),
           clients: d.clients,
@@ -1119,6 +1076,7 @@ export const useWarehouse = create<Store>()(
           payables: d.payables ?? [],
           workers: d.workers ?? [],
           productionBatches: normalizeProductionBatches(d.productionBatches),
+          productionMoves: d.productionMoves ?? [],
         };
         set(next);
         return true;
@@ -1126,7 +1084,7 @@ export const useWarehouse = create<Store>()(
     }),
     {
       name: "cheshki_erp_v1",
-      version: 34,
+      version: 35,
       migrate: (persisted, version) => {
         const state = persisted as WarehouseState;
         if (!state?.stock?.white) return SEED;
@@ -1153,7 +1111,7 @@ export const useWarehouse = create<Store>()(
           };
         }
 
-        return state;
+        return { ...state, productionMoves: state.productionMoves ?? [] };
       },
     },
   ),
