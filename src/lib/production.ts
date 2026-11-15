@@ -151,3 +151,16 @@ export function normalizeProductionBatches(value: unknown): ProductionBatch[] {
   }
   return result;
 }
+
+/** Manual production quantities are independent of the low-stock recommendation. */
+export function manualProductionItems(items: OrderItem[]): OrderItem[] | null {
+  if (!items.length || items.some((item) => !COLORS.includes(item.color) || !SIZES.includes(item.size as (typeof SIZES)[number]) || !Number.isSafeInteger(item.qty) || item.qty <= 0)) return null;
+  const merged = itemMap(items);
+  const result: OrderItem[] = [];
+  for (const [key, qty] of merged) {
+    if (!Number.isSafeInteger(qty)) return null;
+    const [color, size] = key.split(":");
+    result.push({ color: color as Color, size: Number(size), qty });
+  }
+  return Number.isSafeInteger(result.reduce((sum, item) => sum + item.qty, 0)) ? result : null;
+}

@@ -19,9 +19,8 @@ import {
 } from "./types";
 import { colorLabel, emptySizeMap, todayISO, uid } from "./format";
 import {
-  itemMap,
+  manualProductionItems,
   normalizeProductionBatches,
-  productionQtyFor,
   isActiveProductionStage,
   productionStageRole,
 } from "./production";
@@ -946,24 +945,8 @@ export const useWarehouse = create<Store>()(
         })),
 
       createProductionBatch: ({ items, note = "" }) => {
-        const requested = itemMap(items);
-        if (!requested.size) return null;
-        const state = get();
-        const normalized: OrderItem[] = [];
-        for (const [key, requestedQty] of requested.entries()) {
-          const [color, sizeText] = key.split(":");
-          const size = Number(sizeText);
-          const stock = state.stock[color as (typeof COLORS)[number]]?.[size] ?? 0;
-          const inProduction = productionQtyFor(
-            state.productionBatches,
-            color as (typeof COLORS)[number],
-            size,
-          );
-          const remainingNeed = Math.max(0, state.lowThreshold - stock - inProduction);
-          const qty = Math.min(requestedQty, remainingNeed);
-          if (qty > 0) normalized.push({ color: color as (typeof COLORS)[number], size, qty });
-        }
-        if (!normalized.length) return null;
+        const normalized = manualProductionItems(items);
+        if (!normalized) return null;
 
         const now = new Date().toISOString();
         const id = uid("prod");

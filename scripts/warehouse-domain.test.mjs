@@ -130,3 +130,14 @@ test("worker pairs are summed per worker and keep the rate they were taken at", 
   assert.equal(pairsAccrualLabel({ amount: 1, pairs: 200, rate: 3000 }, format), null);
   assert.equal(pairsAccrualLabel(state.payables[2], format), null);
 });
+
+import { manualProductionItems } from "../src/lib/production.ts";
+
+test("manual production is not capped by the stock threshold", () => {
+  assert.deepEqual(manualProductionItems([{ color: "white", size: 14, qty: 100 }, { color: "white", size: 14, qty: 25 }, { color: "black", size: 19, qty: 7 }]), [{ color: "white", size: 14, qty: 125 }, { color: "black", size: 19, qty: 7 }]);
+});
+
+test("manual production rejects invalid quantities and sizes", () => {
+  for (const qty of [0, -1, 1.5, Infinity]) assert.equal(manualProductionItems([{ color: "white", size: 14, qty }]), null);
+  assert.equal(manualProductionItems([{ color: "white", size: 99, qty: 5 }]), null);
+});
