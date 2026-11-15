@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { replayProduction,balanceItems,remainingPlanItems,reconcileProductionPayable } from "../src/lib/production-moves.ts";
+import { replayProduction,balanceItems,remainingPlanItems,reconcileProductionPayable, cancelProductionMoves } from "../src/lib/production-moves.ts";
 const item=(size,qty,color="white")=>({size,qty,color});
 const move=(id,kind,items,workerId,extra={})=>({id,kind,items,workerId,date:"2026-11-15",note:"",at:"2026-11-15T12:00:00Z",...extra});
 test("Sapura partial acceptance leaves exactly 230 by size",()=>{
@@ -59,4 +59,18 @@ test("two workers, silver and white balances stay separate and conserve quantiti
   assert.equal(balanceItems(balances,"sewing:sapura").reduce((n,i)=>n+i.qty,0),230);
   assert.equal(balanceItems(balances,"sewing:tursunoy").reduce((n,i)=>n+i.qty,0),300);
   assert.equal([...balances.values()].flatMap(b=>[...b.values()]).reduce((n,q)=>n+q,0),1000);
+});
+
+test("cancels mistaken opening and linked issue together, preserving audit and other stock",()=>{
+  const rows=[19,20,21].map(s=>item(s,50));
+  const opening=move("a","opening",rows,undefined,{openingTo:"cut"});
+  const issue=move("b","cut-out",rows,"sapura");
+  const state={productionMoves:[opening,issue],stock:{white:{19:20},black:{},gray:{},gold:{}},payables:[],incoming:[],events:[]};
+  assert.ok(cancelProductionMoves(state,["a"],"now").error);
+  const result=cancelProductionMoves(state,["a","b"],"now");
+  assert.equal(result.error,null);
+  assert.deepEqual(result.patch.stock,state.stock);
+  assert.equal(result.patch.productionMoves.length,2);
+  assert.ok(result.patch.productionMoves.every(m=>m.cancelledAt==="now"));
+  assert.deepEqual(balanceItems(replayProduction(result.patch.productionMoves).balances,"sewing:sapura"),[]);
 });
