@@ -134,11 +134,11 @@ export function OrderEditor({
 
       <ColorPills value={color} onChange={setColor} />
 
-      <Card className="overflow-hidden">
+      <Card className="helious-table">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border text-xs uppercase tracking-wide text-subtle">
-              <th className="px-4 py-3 text-left font-medium">Размер</th>
+              <th className="px-3 py-3 text-left font-medium sm:px-4">Размер</th>
               <th className="px-2 py-3 text-center font-medium">Кор.</th>
               <th className="px-2 py-3 text-center font-medium">Доступно</th>
               <th className="px-3 py-3 text-right font-medium">±5</th>
@@ -154,7 +154,7 @@ export function OrderEditor({
                   key={size}
                   className={cn("border-t border-border/70", lacks ? "bg-danger-bg/40" : "")}
                 >
-                  <td className="px-4 py-2 font-medium">{size}</td>
+                  <td className="px-3 py-2 font-medium sm:px-4">{size}</td>
                   <td className="px-2 py-2 text-center">
                     <BoxBadge box={boxOf(boxes, color, size)} />
                   </td>
