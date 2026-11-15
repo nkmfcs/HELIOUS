@@ -33,7 +33,7 @@ const MORE = [
   { to: "/boxes", label: "Коробки", icon: Archive },
   { to: "/cash", label: "Касса", icon: Wallet },
   { to: "/workers", label: "Работники", icon: HardHat },
-  { to: "/preorder", label: "Производство", icon: Scissors },
+  { to: "/preorder", label: "Предзаказ", icon: Scissors },
   { to: "/reports", label: "Отчёты", icon: BarChart3 },
   { to: "/finance", label: "Финансы", icon: Settings2 },
 ] as const;
@@ -65,14 +65,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="min-h-dvh bg-bg text-fg">
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-border bg-surface lg:flex">
         <div className="px-5 py-6">
-          <Link to="/" className="inline-flex items-center gap-2.5 text-base font-semibold tracking-tight"><span className="grid size-8 place-items-center rounded-lg bg-accent text-accent-fg text-sm font-bold">H</span> HELIOUS</Link>
-          <div className="mt-4 rounded-xl bg-bg/75 px-3 py-2.5 font-mono text-xs text-muted tabular">
+          <Link to="/" className="text-sm font-semibold tracking-tight">
+            HELIOUS
+          </Link>
+          <div className="mt-4 font-mono text-xs text-muted tabular">
             {formatNum(pairs)} пар
             {debt > 0 ? (
               <span className="mt-0.5 block text-danger">долг {formatCompact(debt)}</span>
             ) : null}
           </div>
-          <div className="mt-2 flex items-center gap-1.5 text-xs text-muted"><span className={cn("size-2 shrink-0 rounded-full",cloud.status==="conflict"||cloud.status==="error"||cloud.status==="offline"?"bg-danger":"bg-accent/45")}/>{cloudLabel(cloud.status)}</div>
+          <div className="mt-2 text-xs text-subtle">{cloudLabel(cloud.status)}</div>
           <Button asChild className="mt-4 w-full" size="sm">
             <Link to="/orders/new">
               <Plus className="size-4" />
@@ -80,7 +82,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </Link>
           </Button>
         </div>
-        <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-3 pb-3">
+        <nav className="flex flex-1 flex-col gap-0.5 px-3">
           {[...NAV, ...MORE].map((item) => {
             const active = item.to === "/" ? pathname === "/" : pathname.startsWith(item.to);
             const Icon = item.icon;
@@ -89,8 +91,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 key={item.to}
                 to={item.to}
                 className={cn(
-                  "helious-nav-link flex h-11 shrink-0 items-center gap-3 rounded-md px-3 text-sm",
-                  active ? "bg-accent/10 font-semibold text-accent" : "text-muted hover:bg-elevated/70 hover:text-fg",
+                  "flex h-11 items-center gap-3 rounded-md px-3 text-sm",
+                  active ? "bg-elevated text-fg" : "text-muted hover:bg-elevated/70 hover:text-fg",
                 )}
               >
                 <Icon className="size-4" />
@@ -117,8 +119,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <main className="min-w-0 pb-[calc(7rem+env(safe-area-inset-bottom))] lg:ml-60 lg:pb-10">
-        <div className="mx-auto max-w-5xl px-3.5 pt-5 pb-4 sm:px-5 lg:px-8 lg:pt-8 lg:pb-8">
+      <main className="pb-32 lg:ml-60 lg:pb-10">
+        <div className="mx-auto max-w-4xl px-4 pt-5 pb-4 lg:px-8 lg:pt-8 lg:pb-8">
           {cloud.status === "conflict" || cloud.status === "error" || cloud.status === "offline" ? (
             <Link
               to="/more"
@@ -133,7 +135,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </main>
 
       <nav className="pointer-events-none fixed inset-x-0 bottom-0 z-30 px-4 tab-dock lg:hidden">
-        <div className="pointer-events-auto mx-auto flex max-w-md items-center rounded-full border border-border bg-surface px-1 py-1 shadow-float">
+        <div className="pointer-events-auto mx-auto flex max-w-md items-center rounded-full bg-surface/95 px-1 py-1 shadow-float backdrop-blur-xl">
           {NAV.map((item) => {
             const active = item.to === "/" ? pathname === "/" : pathname.startsWith(item.to);
             const Icon = item.icon;
@@ -143,7 +145,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 to={item.to}
                 className={cn(
                   "flex h-12 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-full text-xs transition-colors duration-150",
-                  active ? "bg-accent/8 text-accent" : "text-muted",
+                  active ? "text-accent" : "text-subtle",
                 )}
               >
                 <Icon className="size-4" strokeWidth={active ? 2.1 : 1.6} />
@@ -155,7 +157,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             to="/more"
             className={cn(
               "flex h-12 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-full text-xs transition-colors duration-150",
-              isMorePath(pathname) ? "bg-accent/8 text-accent" : "text-muted",
+              isMorePath(pathname) ? "text-accent" : "text-subtle",
             )}
           >
             <BarChart3 className="size-4" strokeWidth={isMorePath(pathname) ? 2.1 : 1.6} />
