@@ -25,7 +25,7 @@ import {
   normalizeProductionBatches,
   isActiveProductionStage,
 } from "./production";
-import { productionToken, replayProduction, validateMoveInput } from "./production-moves";
+import { productionToken, replayProduction, validateMoveInput, earnsForMove, reconcileProductionPayable, balanceItems, workerLocation } from "./production-moves";
 import { orderDebt } from "./stats";
 import { buildPairsAccrual, cleanWholeNumber } from "./worker-pay";
 import {
@@ -760,6 +760,7 @@ export const useWarehouse = create<Store>()(
       updateWorkerAccrual: (id, patch, expected) => {
         const row = (get().payables ?? []).find((entry) => entry.id === id);
         if (!row || !row.workerId) return "Начисление работника не найдено";
+        if (row.productionMoveId) return "Исправьте связанную приёмку в журнале производства";
         if (row.amount <= row.paidSum) return "Начисление уже закрыто";
         if (
           (["id", "workerId", "person", "amount", "paidSum", "date", "note"] as const).some(
@@ -839,6 +840,11 @@ export const useWarehouse = create<Store>()(
 
       updateWorker: (id, patch) => {
         if (patch.name !== undefined && !patch.name.trim()) return;
+        const current = get().workers.find(w=>w.id===id);
+        if (current && patch.role && current.role!==patch.role && (current.role==="sewing"||current.role==="packaging")) {
+          const {balances}=replayProduction(get().productionMoves ?? []);
+          if (balanceItems(balances,workerLocation(current.role,id)).length) return;
+        }
         set((s) => ({
           workers: (s.workers ?? []).map((worker) =>
             worker.id === id
@@ -982,13 +988,16 @@ export const useWarehouse = create<Store>()(
         if (editingId && !previous) return "Операция не найдена";
         if (previous && previous.kind !== input.kind) return "Тип сохранённой операции нельзя изменить";
         const at = new Date().toISOString();
-        const before = previous ? { kind: previous.kind, items: previous.items, workerId: previous.workerId, planId: previous.planId, openingTo: previous.openingTo, note: previous.note, date: previous.date } : undefined;
-        const move: ProductionMove = { ...input, items, id: previous?.id ?? uid("pm"), at: previous?.at ?? at, audit: before ? [...(previous?.audit ?? []), {at,before}] : [] };
+        const before = previous ? { kind: previous.kind, items: previous.items, workerId: previous.workerId, planId: previous.planId, openingTo: previous.openingTo, rate: previous.rate, note: previous.note, date: previous.date } : undefined;
+        const rate = earnsForMove(input.kind) ? (input.rate ?? (previous?.workerId===input.workerId ? previous?.rate : undefined) ?? state.workers.find(w=>w.id===input.workerId)?.rate) : undefined;
+        const move: ProductionMove = { ...input, rate, items, id: previous?.id ?? uid("pm"), at: previous?.at ?? at, audit: before ? [...(previous?.audit ?? []), {at,before}] : [] };
         const moves = previous ? oldMoves.map(m=>m.id===previous.id ? move : m) : [...oldMoves,move];
         const replay = replayProduction(moves);
         if (replay.error) return replay.error;
+        const payroll = reconcileProductionPayable(state,move);
+        if (payroll.error) return payroll.error;
         if (move.kind !== "warehouse-in") {
-          set({productionMoves:moves});
+          set({productionMoves:moves,payables:payroll.payables});
           return null;
         }
         const stock = normalizeStock(state.stock);

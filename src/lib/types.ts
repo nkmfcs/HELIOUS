@@ -132,6 +132,7 @@ export type Payable = {
   pairs?: number;
   /** Ставка за пару на момент начисления, сум. */
   rate?: number;
+  productionMoveId?: string;
 };
 
 export const WORKER_ROLES = ["sewing", "cutting", "packaging", "other"] as const;
@@ -163,6 +164,8 @@ export type ProductionMoveInput = {
   workerId?: string;
   planId?: string;
   openingTo?: string;
+  /** Ставка за принятую пару на момент операции. 0 — без начисления. */
+  rate?: number;
   note: string;
   date: string;
 };

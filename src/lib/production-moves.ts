@@ -1,4 +1,4 @@
-import { COLORS, SIZES, type OrderItem, type ProductionBatch, type ProductionMove, type ProductionMoveInput, type WarehouseState } from "./types.ts";
+import { COLORS, SIZES, type OrderItem, type ProductionBatch, type ProductionMove, type ProductionMoveInput, type WarehouseState, type Payable } from "./types.ts";
 import { itemKey, manualProductionItems } from "./production.ts";
 
 export const MOVE_LABELS = {
@@ -74,7 +74,7 @@ export function remainingPlanItems(batch: ProductionBatch, moves: readonly Produ
   return batch.items.map(item => ({...item,qty: Math.max(0,item.qty-(received.get(itemKey(item))??0))})).filter(item=>item.qty>0);
 }
 export function productionToken(state: WarehouseState): string {
-  return JSON.stringify([state.productionMoves ?? [], state.productionBatches, state.stock, state.workers]);
+  return JSON.stringify([state.productionMoves ?? [], state.productionBatches, state.stock, state.workers, state.payables]);
 }
 export function validateMoveInput(state: WarehouseState, input: ProductionMoveInput): string | null {
   if (!moveRoute(input) || !manualProductionItems(input.items)) return "Укажите корректные позиции и получателя";
@@ -105,4 +105,26 @@ export function physicalStageQty(balances: Balances, stage: "cutting" | "sewing"
     sum += color !== undefined && size !== undefined ? (bucket.get(itemKey({color,size}))??0) : [...bucket.values()].reduce((a,b)=>a+b,0);
   }
   return sum;
+}
+
+export function earnsForMove(kind: ProductionMoveInput["kind"]): boolean {
+  return kind === "cut-in" || kind === "sewn-in" || kind === "packed-in";
+}
+
+/** One linked accrual per confirmed receipt, preserving payments and historical rate. */
+export function reconcileProductionPayable(state: Pick<WarehouseState, "workers"|"payables">, move: ProductionMove): { payables: Payable[]; error: string | null } {
+  const payables = state.payables ?? [];
+  if (!earnsForMove(move.kind)) return {payables,error:null};
+  const worker = state.workers.find(w=>w.id===move.workerId);
+  const old = payables.find(p=>p.productionMoveId===move.id);
+  const rate = move.rate;
+  const pairs = move.items.reduce((n,i)=>n+i.qty,0);
+  if (!worker || rate===undefined || !Number.isSafeInteger(rate) || rate<0 || !Number.isSafeInteger(pairs*rate))
+    return {payables,error:"Укажите ставку за пару (0 — без начисления)"};
+  const amount = pairs*rate;
+  if (old && old.paidSum>0 && (old.workerId!==worker.id || amount<old.paidSum))
+    return {payables,error:"Начисление уже оплачено. Нельзя сменить работника или уменьшить сумму ниже выплаченной."};
+  const rest = payables.filter(p=>p.productionMoveId!==move.id);
+  if (!amount) return {payables:rest,error:null};
+  return {payables:[...rest,{id:old?.id??"production-pay:"+move.id,productionMoveId:move.id,workerId:worker.id,person:worker.name,amount,paidSum:old?.paidSum??0,pairs,rate,date:move.date,note:MOVE_LABELS[move.kind]}],error:null};
 }
