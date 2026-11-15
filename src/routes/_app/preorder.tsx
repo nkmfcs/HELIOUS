@@ -253,10 +253,10 @@ function PreorderPage() {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-lg font-medium">Количество на крой</h2>
           <div className="flex gap-2">
-            <Button variant={showAll ? "secondary" : "default"} onClick={() => setShowAll(false)}>
+            <Button variant={showAll ? "secondary" : "primary"} onClick={() => setShowAll(false)}>
               Дефицит
             </Button>
-            <Button variant={showAll ? "default" : "secondary"} onClick={() => setShowAll(true)}>
+            <Button variant={showAll ? "primary" : "secondary"} onClick={() => setShowAll(true)}>
               Все размеры
             </Button>
           </div>
