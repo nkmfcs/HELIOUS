@@ -111,13 +111,13 @@ function ReportsPage() {
                   />
                   <Tooltip
                     contentStyle={{
-                      background: "#fffcf7",
+                      background: "#ffffff",
                       border: "1px solid rgb(28 27 24 / 0.1)",
                       borderRadius: 8,
                       color: "#1c1b18",
                     }}
                   />
-                  <Bar dataKey="пары" fill="#1c1b18" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="пары" fill="#347363" radius={[5, 5, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>

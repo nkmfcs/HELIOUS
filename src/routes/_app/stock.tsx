@@ -114,7 +114,7 @@ function StockPage() {
             <h2 className="text-sm font-medium">Приход · {colorLabel(color)}</h2>
             <p className="text-xs text-muted">Нажмите +5 по размерам, затем подтвердите.</p>
           </div>
-          <div className="space-y-1">
+          <div className="grid gap-x-6 sm:grid-cols-2">
             {SIZES.map((size) => (
               <div key={size} className="flex items-center justify-between py-1">
                 <span className="flex items-center gap-2 text-sm">
@@ -163,11 +163,11 @@ function StockPage() {
         </Card>
       ) : null}
 
-      <Card className="overflow-hidden">
+      <Card className="helious-table">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-bg/55 text-xs uppercase tracking-wide text-muted">
-              <th className="px-4 py-3 text-left font-medium">Размер</th>
+              <th className="px-3 py-3 text-left font-medium sm:px-4">Размер</th>
               <th className="px-2 py-3 text-center font-medium">Кор.</th>
               <th className="px-2 py-3 text-center font-medium">Пар</th>
               <th className="px-2 py-3 text-center font-medium">Уп</th>
@@ -183,7 +183,7 @@ function StockPage() {
                   r.pairs === 0 ? "bg-danger-bg/40" : r.pairs < threshold ? "bg-warn-bg/30" : "",
                 )}
               >
-                <td className="px-4 py-2 font-medium">{r.size}</td>
+                <td className="px-3 py-2 font-medium sm:px-4">{r.size}</td>
                 <td className="px-2 py-2 text-center">
                   <BoxBadge box={boxOf(boxes, color, r.size)} />
                 </td>

@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ChevronRight, Warehouse, Wallet, TrendingUp, AlertCircle } from "lucide-react";
+import { ChevronRight, Warehouse, Wallet, TrendingUp, AlertCircle, Plus, Scissors, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Group, MetricRow, SectionLabel } from "@/components/ui/card";
 import {
@@ -53,10 +53,11 @@ function Home() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight">Склад</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">Главная</h1>
         <p className="mt-1 text-sm text-muted">{formatDate(today)}</p>
       </div>
 
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4"><Link to="/orders/new" className="helious-action-tile helious-nav-link"><span className="rounded-lg bg-accent/10 p-2 text-accent"><Plus className="size-4"/></span><span className="text-xs font-medium sm:text-sm">Новый заказ</span></Link><Link to="/stock" className="helious-action-tile helious-nav-link"><span className="rounded-lg bg-amber-500/10 p-2 text-amber-700"><Warehouse className="size-4"/></span><span className="text-xs font-medium sm:text-sm">Склад</span></Link><Link to="/preorder" className="helious-action-tile helious-nav-link"><span className="rounded-lg bg-sky-500/10 p-2 text-sky-700"><Scissors className="size-4"/></span><span className="text-xs font-medium sm:text-sm">Производство</span></Link><Link to="/workers" className="helious-action-tile helious-nav-link"><span className="rounded-lg bg-violet-500/10 p-2 text-violet-700"><Users className="size-4"/></span><span className="text-xs font-medium sm:text-sm">Работники</span></Link></div>
       <Group>
         <div className="helious-hero px-4 pb-4 pt-5">
           <div className="mb-3 inline-flex items-center gap-1.5 rounded-lg bg-accent/10 px-2.5 py-1 text-xs font-medium text-accent"><Warehouse className="size-4"/> Готовая продукция</div>
@@ -92,6 +93,7 @@ function Home() {
         </div>
       </Group>
 
+      <div className="grid gap-4 md:grid-cols-2">
       <section>
         <SectionLabel><span className="flex items-center gap-2"><Wallet className="size-4 text-accent"/> Сегодня</span></SectionLabel>
         <Group>
@@ -118,6 +120,7 @@ function Home() {
         </Group>
       </section>
 
+      </div>
       <section>
         <div className="mb-2 flex items-center justify-between px-1">
           <div className="text-xs font-medium text-subtle">Должники</div>

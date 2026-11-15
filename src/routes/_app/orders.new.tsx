@@ -145,7 +145,7 @@ function NewOrderPage() {
       </Card>
 
       <Card className="space-y-3 p-4">
-        <div className="text-sm font-medium">Вставить список</div>
+        <div className="flex items-center gap-2 text-sm font-semibold"><span className="rounded-md bg-accent/10 px-2 py-1 text-xs text-accent">Быстрый ввод</span> Вставить список</div>
         <Textarea
           value={ai}
           onChange={(e) => setAi(e.target.value)}
@@ -180,11 +180,11 @@ function NewOrderPage() {
 
       <ColorPills value={color} onChange={setColor} />
 
-      <Card className="overflow-hidden">
+      <Card className="helious-table">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border text-xs uppercase tracking-wide text-subtle">
-              <th className="px-4 py-3 text-left font-medium">Размер</th>
+              <th className="px-3 py-3 text-left font-medium sm:px-4">Размер</th>
               <th className="px-2 py-3 text-center font-medium">Кор.</th>
               <th className="px-2 py-3 text-center font-medium">Склад</th>
               <th className="px-2 py-3 text-center font-medium">Заказ</th>
@@ -196,8 +196,8 @@ function NewOrderPage() {
               const have = stock[color][size] ?? 0;
               const qty = cart[color][size] ?? 0;
               return (
-                <tr key={size} className="border-t border-border/70">
-                  <td className="px-4 py-2 font-medium">{size}</td>
+                <tr key={size} className={cn("border-t border-border/70",qty>0?"bg-accent/5":"")}>
+                  <td className="px-3 py-2 font-medium sm:px-4">{size}</td>
                   <td className="px-2 py-2 text-center">
                     <BoxBadge box={boxOf(boxes, color, size)} />
                   </td>

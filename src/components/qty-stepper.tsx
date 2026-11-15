@@ -18,10 +18,11 @@ export function QtyStepper({
     ? "grid size-9 place-items-center rounded-sm"
     : "grid size-11 place-items-center rounded-sm";
   return (
-    <div className={cn("inline-flex items-center gap-0.5", className)}>
+    <div className={cn("helious-stepper inline-flex items-center gap-0.5 rounded-lg", className)}>
       <button
         type="button"
-        className={cn(btn, "bg-danger-bg text-danger")}
+        className={cn(btn, "bg-danger-bg text-danger disabled:opacity-35 transition-transform")}
+        disabled={value <= 0}
         onClick={() => onChange(Math.max(0, value - step))}
         aria-label="Минус"
       >
@@ -37,7 +38,7 @@ export function QtyStepper({
       </span>
       <button
         type="button"
-        className={cn(btn, "bg-ok-bg text-ok")}
+        className={cn(btn, "bg-ok-bg text-ok transition-transform")}
         onClick={() => onChange(value + step)}
         aria-label="Плюс"
       >
