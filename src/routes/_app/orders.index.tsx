@@ -1,5 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
+import { Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import { confirmDeleteOrder } from "@/components/order-delete";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Group } from "@/components/ui/card";
@@ -34,6 +37,19 @@ function OrdersPage() {
   }, [state.orders, state.clients, filter, q]);
 
   const assemblingCount = state.orders.filter((o) => o.status === "assembling").length;
+
+  const cancelled = state.orders.filter((o) => o.status === "cancelled");
+
+  function deleteAllCancelled() {
+    if (
+      !confirm(
+        `Удалить все отменённые заказы (${cancelled.length})? Склад не изменится — пары вернулись при отмене.`,
+      )
+    )
+      return;
+    for (const o of cancelled) state.deleteOrder(o.id);
+    toast(`Удалено отменённых: ${cancelled.length}`);
+  }
 
   const tabs: { id: Filter; label: string }[] = [
     { id: "all", label: "Все" },
@@ -79,6 +95,12 @@ function OrdersPage() {
         className="h-11 w-full rounded-md border border-border bg-bg px-3 text-sm outline-none focus:border-border-strong"
       />
 
+      {filter === "cancelled" && cancelled.length > 0 ? (
+        <Button variant="danger" className="w-full" onClick={deleteAllCancelled}>
+          Удалить все отменённые · {cancelled.length}
+        </Button>
+      ) : null}
+
       <div>
         {list.length === 0 ? (
           <Group>
@@ -92,39 +114,52 @@ function OrdersPage() {
               return (
                 <div key={o.id}>
                   {i > 0 ? <div className="ml-4 h-px bg-border" /> : null}
-                  <Link
-                    to="/orders/$orderId"
-                    params={{ orderId: o.id }}
-                    className="helious-press block px-4 py-3.5"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="text-sm font-medium">
-                          {client
-                            ? `${client.name}${client.shop ? " · " + client.shop : ""}`
-                            : "Без клиента"}
+                  <div className="flex items-stretch">
+                    <Link
+                      to="/orders/$orderId"
+                      params={{ orderId: o.id }}
+                      className="helious-press block min-w-0 flex-1 py-3.5 pl-4 pr-2"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-medium">
+                            {client
+                              ? `${client.name}${client.shop ? " · " + client.shop : ""}`
+                              : "Без клиента"}
+                          </div>
+                          <div className="mt-0.5 text-xs text-muted">
+                            {formatDate(o.date)} · {o.totalPairs} пар
+                            {o.missing.length
+                              ? ` · не хватило ${o.missing.reduce((s, i) => s + i.qty, 0)}`
+                              : ""}
+                          </div>
                         </div>
-                        <div className="mt-0.5 text-xs text-muted">
-                          {formatDate(o.date)} · {o.totalPairs} пар
-                          {o.missing.length
-                            ? ` · не хватило ${o.missing.reduce((s, i) => s + i.qty, 0)}`
-                            : ""}
+                        <div className="text-right">
+                          <div className="text-sm font-semibold tabular">
+                            {formatSum(o.totalSum)}
+                          </div>
+                          {o.status === "assembling" ? (
+                            <Badge tone="warn">Сборка</Badge>
+                          ) : o.status === "cancelled" ? (
+                            <Badge>Отменён</Badge>
+                          ) : d > 0 ? (
+                            <Badge tone="danger">Долг</Badge>
+                          ) : (
+                            <Badge tone="ok">Оплачен</Badge>
+                          )}
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className="text-sm font-semibold tabular">{formatSum(o.totalSum)}</div>
-                        {o.status === "assembling" ? (
-                          <Badge tone="warn">Сборка</Badge>
-                        ) : o.status === "cancelled" ? (
-                          <Badge>Отменён</Badge>
-                        ) : d > 0 ? (
-                          <Badge tone="danger">Долг</Badge>
-                        ) : (
-                          <Badge tone="ok">Оплачен</Badge>
-                        )}
-                      </div>
-                    </div>
-                  </Link>
+                    </Link>
+                    <button
+                      type="button"
+                      aria-label="Удалить заказ"
+                      title="Удалить заказ"
+                      onClick={() => confirmDeleteOrder(o)}
+                      className="grid w-11 shrink-0 place-items-center text-subtle hover:bg-danger-bg hover:text-danger"
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  </div>
                 </div>
               );
             })}

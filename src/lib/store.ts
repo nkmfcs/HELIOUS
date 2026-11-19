@@ -124,6 +124,16 @@ type Actions = {
     | { ok: false; reason: "not_found" | "empty" }
     | { ok: false; reason: "insufficient_stock"; shortages: StockShortage[] };
   deleteAssembly: (orderId: string) => boolean;
+  /**
+   * Удаляет заказ из списка. Активный заказ сначала отменяется (пары
+   * возвращаются на склад, оплата — возвратом клиенту). Отменённый заказ
+   * склад уже вернул при отмене, поэтому склад не трогается повторно.
+   */
+  deleteOrder: (
+    orderId: string,
+  ) =>
+    | { ok: true; returned: number; refunded: number }
+    | { ok: false; reason: "not_found" | "invalid_history" };
   cancelOrder: (
     orderId: string,
   ) =>
@@ -662,6 +672,40 @@ export const useWarehouse = create<Store>()(
         if (!order || order.status !== "assembling") return false;
         set({ orders: s.orders.filter((candidate) => candidate.id !== orderId) });
         return true;
+      },
+
+      deleteOrder: (orderId) => {
+        const order = get().orders.find((candidate) => candidate.id === orderId);
+        if (!order) return { ok: false, reason: "not_found" };
+        let returned = 0;
+        let refunded = 0;
+        if (order.status === "assembling") {
+          get().deleteAssembly(orderId);
+          return { ok: true, returned: 0, refunded: 0 };
+        }
+        if (order.status === "shipped") {
+          const result = get().cancelOrder(orderId);
+          if (!result.ok) {
+            return {
+              ok: false,
+              reason: result.reason === "invalid_history" ? "invalid_history" : "not_found",
+            };
+          }
+          returned = result.returned;
+          refunded = result.refunded;
+        }
+        const s = get();
+        set({
+          orders: s.orders.filter((candidate) => candidate.id !== orderId),
+          // Записи об отгрузке/правке/отмене уходят вместе с заказом.
+          // Денежные записи (оплаты, возвраты, касса) остаются как история денег.
+          events: s.events.filter(
+            (event) =>
+              event.orderId !== orderId ||
+              (event.type !== "order" && event.type !== "order_edit" && event.type !== "cancel"),
+          ),
+        });
+        return { ok: true, returned, refunded };
       },
 
       cancelOrder: (orderId) => {
