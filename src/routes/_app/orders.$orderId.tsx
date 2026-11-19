@@ -14,6 +14,7 @@ import { COLORS } from "@/lib/types";
 import { OrderEditor } from "@/components/order-editor";
 import { OrderAssembly } from "@/components/order-assembly";
 import { OrderTopUp } from "@/components/order-top-up";
+import { confirmDeleteOrder } from "@/components/order-delete";
 
 export const Route = createFileRoute("/_app/orders/$orderId")({ component: OrderPage });
 
@@ -152,10 +153,18 @@ function OrderPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <div className="helious-metric"><Stat label="Пар" value={formatNum(order.totalPairs)} /></div>
-        <div className="helious-metric"><Stat label="Сумма" value={formatSum(order.totalSum)} /></div>
-        <div className="helious-metric"><Stat label="Оплачено" value={formatSum(order.paidSum)} tone="ok" /></div>
-        <div className="helious-metric"><Stat label="Остаток" value={formatSum(debt)} tone={debt > 0 ? "danger" : "ok"} /></div>
+        <div className="helious-metric">
+          <Stat label="Пар" value={formatNum(order.totalPairs)} />
+        </div>
+        <div className="helious-metric">
+          <Stat label="Сумма" value={formatSum(order.totalSum)} />
+        </div>
+        <div className="helious-metric">
+          <Stat label="Оплачено" value={formatSum(order.paidSum)} tone="ok" />
+        </div>
+        <div className="helious-metric">
+          <Stat label="Остаток" value={formatSum(debt)} tone={debt > 0 ? "danger" : "ok"} />
+        </div>
       </div>
 
       {order.status === "shipped" && debt > 0 ? (
@@ -281,6 +290,18 @@ function OrderPage() {
             Отменить и вернуть на склад
           </Button>
         </div>
+      ) : null}
+
+      {order.status === "cancelled" || (order.status === "shipped" && hasInventoryDetails) ? (
+        <Button
+          variant="ghost"
+          className="w-full text-danger hover:text-danger"
+          onClick={() => {
+            if (confirmDeleteOrder(order)) void navigate({ to: "/orders" });
+          }}
+        >
+          Удалить заказ{order.status === "shipped" ? " (вернуть на склад)" : ""}
+        </Button>
       ) : null}
     </div>
   );

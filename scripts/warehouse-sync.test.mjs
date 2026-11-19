@@ -884,3 +884,32 @@ test("order goes to assembly without touching stock, ships on confirm, then is t
   assert.equal(pc.actions().deleteAssembly(draft), true);
   assert.equal(pc.state().stock.white[17], 10);
 });
+
+test("deleting orders returns stock once: shipped → back to stock, cancelled → untouched", () => {
+  const server = makeServer(null);
+  const pc = browser(server);
+  const data = pc.state();
+  data.clients = [{ id: "c1", name: "Мурод", shop: "", phone: "", note: "", createdAt: "" }];
+  data.stock.white[17] = 50;
+  pc.edit((s) => Object.assign(s, data));
+
+  const a = pc
+    .actions()
+    .shipOrder({ clientId: "c1", items: [{ color: "white", size: 17, qty: 20 }] });
+  assert.equal(pc.state().stock.white[17], 30);
+  const del = pc.actions().deleteOrder(a.orderId);
+  assert.equal(del.ok, true);
+  assert.equal(del.returned, 20);
+  assert.equal(pc.state().stock.white[17], 50);
+  assert.equal(pc.state().orders.length, 0);
+  assert.equal(pc.state().events.filter((e) => e.orderId === a.orderId).length, 0);
+
+  const b = pc
+    .actions()
+    .shipOrder({ clientId: "c1", items: [{ color: "white", size: 17, qty: 10 }] });
+  pc.actions().cancelOrder(b.orderId);
+  assert.equal(pc.state().stock.white[17], 50);
+  assert.equal(pc.actions().deleteOrder(b.orderId).returned, 0);
+  assert.equal(pc.state().stock.white[17], 50, "отменённый не возвращается второй раз");
+  assert.equal(pc.state().orders.length, 0);
+});
