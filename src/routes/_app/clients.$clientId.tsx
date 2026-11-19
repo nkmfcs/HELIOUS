@@ -195,7 +195,9 @@ function ClientPage() {
                       </div>
                       <div className="text-right">
                         <div className="font-mono text-sm tabular">{formatSum(o.totalSum)}</div>
-                        {o.status === "cancelled" ? (
+                        {o.status === "assembling" ? (
+                          <Badge tone="warn">Сборка</Badge>
+                        ) : o.status === "cancelled" ? (
                           <Badge>Отменён</Badge>
                         ) : d > 0 ? (
                           <Badge tone="danger">Долг {formatNum(d)}</Badge>

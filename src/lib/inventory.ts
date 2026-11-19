@@ -102,3 +102,29 @@ export function replaceOrderAllocation(
 export function itemTotal(items: readonly OrderItem[]): number {
   return normalizeOrderItems(items).reduce((sum, item) => sum + item.qty, 0);
 }
+
+/** a − b по каждой позиции цвет/размер, без отрицательных остатков. */
+export function subtractItems(a: readonly OrderItem[], b: readonly OrderItem[]): OrderItem[] {
+  const minus = new Map(
+    normalizeOrderItems(b).map((item) => [`${item.color}-${item.size}`, item.qty]),
+  );
+  return normalizeOrderItems(
+    normalizeOrderItems(a).map((item) => ({
+      ...item,
+      qty: Math.max(0, item.qty - (minus.get(`${item.color}-${item.size}`) ?? 0)),
+    })),
+  );
+}
+
+/** Ограничивает каждую позицию сверху количеством из limit (по цвету/размеру). */
+export function capItems(items: readonly OrderItem[], limit: readonly OrderItem[]): OrderItem[] {
+  const max = new Map(
+    normalizeOrderItems(limit).map((item) => [`${item.color}-${item.size}`, item.qty]),
+  );
+  return normalizeOrderItems(
+    normalizeOrderItems(items).map((item) => ({
+      ...item,
+      qty: Math.min(item.qty, max.get(`${item.color}-${item.size}`) ?? 0),
+    })),
+  );
+}

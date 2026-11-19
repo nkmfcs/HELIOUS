@@ -36,7 +36,13 @@ export type Order = {
   totalPairs: number;
   totalSum: number;
   paidSum: number;
-  status: "shipped" | "cancelled";
+  /**
+   * assembling — заказ вписан и собирается: склад ещё не списан, долга нет.
+   * shipped — сборка подтверждена, заказ задокументирован, склад списан.
+   */
+  status: "assembling" | "shipped" | "cancelled";
+  /** Сколько уже собрано по каждой позиции, пока заказ в статусе assembling. */
+  picked?: OrderItem[];
   note: string;
   createdAt: string;
 };

@@ -824,3 +824,63 @@ test("pairs taken from a worker are charged at their rate, reduced by payments a
   await phone.advance(POLL_MS);
   assert.deepEqual(phone.state(), pc.state());
 });
+
+test("order goes to assembly without touching stock, ships on confirm, then is topped up", () => {
+  const server = makeServer(null);
+  const pc = browser(server);
+  const data = pc.state();
+  data.clients = [{ id: "c1", name: "Аня", shop: "", phone: "", note: "", createdAt: "" }];
+  data.stock.white[17] = 30;
+  data.stock.black[18] = 0;
+  pc.edit((s) => Object.assign(s, data));
+
+  const id = pc.actions().createAssembly({
+    clientId: "c1",
+    items: [
+      { color: "white", size: 17, qty: 20 },
+      { color: "black", size: 18, qty: 20 },
+    ],
+  });
+  assert.ok(id);
+  let order = pc.state().orders.find((o) => o.id === id);
+  assert.equal(order.status, "assembling");
+  assert.equal(pc.state().stock.white[17], 30, "сборка не списывает склад");
+  assert.equal(pc.state().events.filter((e) => e.orderId === id).length, 0);
+
+  pc.actions().setAssemblyPicked(id, [{ color: "white", size: 17, qty: 99 }]);
+  assert.deepEqual(pc.state().orders.find((o) => o.id === id).picked, [
+    { color: "white", size: 17, qty: 20 },
+  ]);
+
+  const res = pc.actions().confirmAssembly({
+    orderId: id,
+    picked: [{ color: "white", size: 17, qty: 20 }],
+  });
+  assert.deepEqual({ ...res }, { ok: true, shipped: 20, missing: 20 });
+  order = pc.state().orders.find((o) => o.id === id);
+  assert.equal(order.status, "shipped");
+  assert.equal(order.totalSum, 20 * 18_000);
+  assert.deepEqual(order.missing, [{ color: "black", size: 18, qty: 20 }]);
+  assert.equal(pc.state().stock.white[17], 10);
+
+  // Привёз 20 чёрных 18 — дополняю заказ.
+  pc.actions().changeStock("black", 18, 20);
+  const top = pc.actions().updateOrder({
+    orderId: id,
+    items: [...order.items, { color: "black", size: 18, qty: 20 }],
+    missing: [],
+  });
+  assert.equal(top.ok, true);
+  order = pc.state().orders.find((o) => o.id === id);
+  assert.equal(order.totalPairs, 40);
+  assert.deepEqual(order.missing, []);
+  assert.equal(pc.state().stock.black[18], 0);
+
+  const draft = pc.actions().createAssembly({
+    clientId: "c1",
+    items: [{ color: "white", size: 17, qty: 5 }],
+  });
+  assert.equal(pc.actions().cancelOrder(draft).ok, false);
+  assert.equal(pc.actions().deleteAssembly(draft), true);
+  assert.equal(pc.state().stock.white[17], 10);
+});
