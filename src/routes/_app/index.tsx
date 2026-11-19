@@ -187,7 +187,9 @@ function Home() {
                     <div className="flex items-center gap-2">
                       <div className="text-right">
                         <div className="text-sm font-semibold tabular">{formatNum(o.totalSum)}</div>
-                        {o.status === "cancelled" ? (
+                        {o.status === "assembling" ? (
+                          <Badge tone="warn">Сборка</Badge>
+                        ) : o.status === "cancelled" ? (
                           <Badge>Отменён</Badge>
                         ) : unpaid ? (
                           <Badge tone="danger">Долг</Badge>

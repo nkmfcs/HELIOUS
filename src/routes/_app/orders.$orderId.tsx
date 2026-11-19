@@ -12,6 +12,8 @@ import { useWarehouse } from "@/lib/store";
 import { orderDebt } from "@/lib/stats";
 import { COLORS } from "@/lib/types";
 import { OrderEditor } from "@/components/order-editor";
+import { OrderAssembly } from "@/components/order-assembly";
+import { OrderTopUp } from "@/components/order-top-up";
 
 export const Route = createFileRoute("/_app/orders/$orderId")({ component: OrderPage });
 
@@ -25,6 +27,7 @@ function OrderPage() {
   const boxes = state.boxes;
   const [pay, setPay] = useState("");
   const [editing, setEditing] = useState(false);
+  const [toppingUp, setToppingUp] = useState(false);
 
   if (!order) {
     return (
@@ -37,10 +40,34 @@ function OrderPage() {
     );
   }
 
+  if (order.status === "assembling") return <OrderAssembly order={order} />;
+
   const client = state.clients.find((c) => c.id === order.clientId);
   const debt = orderDebt(order);
   const detailedPairs = order.items.reduce((sum, item) => sum + item.qty, 0);
   const hasInventoryDetails = detailedPairs === order.totalPairs;
+
+  if (toppingUp && order.status === "shipped" && hasInventoryDetails) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <button
+            type="button"
+            className="text-xs text-muted hover:text-fg"
+            onClick={() => setToppingUp(false)}
+          >
+            ← Заказ
+          </button>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight">Дополнить заказ</h1>
+          <p className="text-sm text-muted">
+            {client ? `${client.name}${client.shop ? ` · ${client.shop}` : ""}` : "Клиент удалён"} ·{" "}
+            сейчас {order.totalPairs} пар
+          </p>
+        </div>
+        <OrderTopUp order={order} onDone={() => setToppingUp(false)} />
+      </div>
+    );
+  }
 
   if (editing && order.status === "shipped" && hasInventoryDetails) {
     return (
@@ -213,6 +240,12 @@ function OrderPage() {
 
       {order.status === "shipped" && hasInventoryDetails ? (
         <div className="space-y-3">
+          <Button className="w-full" onClick={() => setToppingUp(true)}>
+            Дополнить заказ
+            {order.missing.length
+              ? ` · не хватило ${order.missing.reduce((s, i) => s + i.qty, 0)}`
+              : ""}
+          </Button>
           <Button className="w-full" variant="secondary" onClick={() => setEditing(true)}>
             Редактировать заказ
           </Button>

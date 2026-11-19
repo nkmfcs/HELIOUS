@@ -9,7 +9,7 @@ import { orderDebt } from "@/lib/stats";
 
 export const Route = createFileRoute("/_app/orders/")({ component: OrdersPage });
 
-type Filter = "all" | "debt" | "paid" | "cancelled";
+type Filter = "all" | "assembling" | "debt" | "paid" | "cancelled";
 
 function OrdersPage() {
   const state = useWarehouse();
@@ -20,6 +20,7 @@ function OrdersPage() {
     return [...state.orders]
       .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt))
       .filter((o) => {
+        if (filter === "assembling") return o.status === "assembling";
         if (filter === "debt") return o.status === "shipped" && orderDebt(o) > 0;
         if (filter === "paid") return o.status === "shipped" && orderDebt(o) === 0;
         if (filter === "cancelled") return o.status === "cancelled";
@@ -32,8 +33,11 @@ function OrdersPage() {
       });
   }, [state.orders, state.clients, filter, q]);
 
+  const assemblingCount = state.orders.filter((o) => o.status === "assembling").length;
+
   const tabs: { id: Filter; label: string }[] = [
     { id: "all", label: "Все" },
+    { id: "assembling", label: `Сборка${assemblingCount ? ` ${assemblingCount}` : ""}` },
     { id: "debt", label: "Долг" },
     { id: "paid", label: "Оплачены" },
     { id: "cancelled", label: "Отмена" },
@@ -109,7 +113,9 @@ function OrdersPage() {
                       </div>
                       <div className="text-right">
                         <div className="text-sm font-semibold tabular">{formatSum(o.totalSum)}</div>
-                        {o.status === "cancelled" ? (
+                        {o.status === "assembling" ? (
+                          <Badge tone="warn">Сборка</Badge>
+                        ) : o.status === "cancelled" ? (
                           <Badge>Отменён</Badge>
                         ) : d > 0 ? (
                           <Badge tone="danger">Долг</Badge>

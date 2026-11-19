@@ -1,9 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { defaultBoxes, ensureBoxes } from "../src/lib/boxes.ts";
-import { addItemsToStock, allocateOrder, normalizeStock } from "../src/lib/inventory.ts";
+import {
+  addItemsToStock,
+  allocateOrder,
+  capItems,
+  normalizeStock,
+  subtractItems,
+} from "../src/lib/inventory.ts";
 import { parseOrderText } from "../src/lib/order-parser.ts";
-import { workerAccrued, workerOwed, workerPaid } from "../src/lib/stats.ts";
+import { orderDebt, workerAccrued, workerOwed, workerPaid } from "../src/lib/stats.ts";
 import { COLORS, SIZES } from "../src/lib/types.ts";
 import {
   buildPairsAccrual,
@@ -140,4 +146,33 @@ test("manual production is not capped by the stock threshold", () => {
 test("manual production rejects invalid quantities and sizes", () => {
   for (const qty of [0, -1, 1.5, Infinity]) assert.equal(manualProductionItems([{ color: "white", size: 14, qty }]), null);
   assert.equal(manualProductionItems([{ color: "white", size: 99, qty: 5 }]), null);
+});
+
+test("assembly: picked is capped by request, the rest becomes missing", () => {
+  const requested = [
+    { color: "white", size: 17, qty: 30 },
+    { color: "black", size: 18, qty: 10 },
+  ];
+  const picked = capItems(
+    [
+      { color: "white", size: 17, qty: 50 },
+      { color: "gold", size: 20, qty: 5 },
+    ],
+    requested,
+  );
+  assert.deepEqual(picked, [{ color: "white", size: 17, qty: 30 }]);
+  assert.deepEqual(subtractItems(requested, picked), [{ color: "black", size: 18, qty: 10 }]);
+});
+
+test("top-up: added pairs leave missing, never below zero", () => {
+  const missing = [{ color: "gray", size: 20, qty: 20 }];
+  assert.deepEqual(subtractItems(missing, [{ color: "gray", size: 20, qty: 15 }]), [
+    { color: "gray", size: 20, qty: 5 },
+  ]);
+  assert.deepEqual(subtractItems(missing, [{ color: "gray", size: 20, qty: 40 }]), []);
+});
+
+test("assembling order has no debt", () => {
+  assert.equal(orderDebt({ status: "assembling", totalSum: 90_000, paidSum: 0 }), 0);
+  assert.equal(orderDebt({ status: "shipped", totalSum: 90_000, paidSum: 0 }), 90_000);
 });

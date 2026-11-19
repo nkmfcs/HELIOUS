@@ -16,11 +16,12 @@ import { checkAvailability } from "@/lib/stats";
 import { COLORS, SELL_PRICE, SIZES, type Color } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-type Search = { clientId?: string };
+type Search = { clientId?: string; editId?: string };
 
 export const Route = createFileRoute("/_app/orders/new")({
   validateSearch: (s: Record<string, unknown>): Search => ({
     clientId: typeof s.clientId === "string" ? s.clientId : undefined,
+    editId: typeof s.editId === "string" ? s.editId : undefined,
   }),
   component: NewOrderPage,
 });
@@ -33,16 +34,29 @@ function NewOrderPage() {
   const boxes = useWarehouse((s) => s.boxes);
   const addClient = useWarehouse((s) => s.addClient);
   const shipOrder = useWarehouse((s) => s.shipOrder);
+  const createAssembly = useWarehouse((s) => s.createAssembly);
+  const updateAssembly = useWarehouse((s) => s.updateAssembly);
+  const draft = useWarehouse((s) =>
+    search.editId
+      ? s.orders.find((o) => o.id === search.editId && o.status === "assembling")
+      : undefined,
+  );
 
-  const [clientId, setClientId] = useState(search.clientId ?? clients[0]?.id ?? "");
+  const [clientId, setClientId] = useState(
+    draft?.clientId ?? search.clientId ?? clients[0]?.id ?? "",
+  );
   const [newName, setNewName] = useState("");
   const [newShop, setNewShop] = useState("");
   const [color, setColor] = useState<Color>("white");
-  const [cart, setCart] = useState(emptyCart);
+  const [cart, setCart] = useState(() => {
+    const initial = emptyCart();
+    for (const i of draft?.items ?? []) initial[i.color][i.size] = i.qty;
+    return initial;
+  });
   const [ai, setAi] = useState("");
   const [unit, setUnit] = useState<ParseUnit>("pairs");
-  const [note, setNote] = useState("");
-  const [date, setDate] = useState(todayISO());
+  const [note, setNote] = useState(draft?.note ?? "");
+  const [date, setDate] = useState(draft?.date ?? todayISO());
 
   const items = useMemo(() => cartToItems(cart), [cart]);
   const checked = useMemo(() => checkAvailability(stock, items), [stock, items]);
@@ -89,6 +103,38 @@ function NewOrderPage() {
     toast("Клиент создан");
   }
 
+  function validate(): boolean {
+    if (!clientId) {
+      toast("Выберите клиента");
+      return false;
+    }
+    if (!items.length) {
+      toast("Пустой заказ");
+      return false;
+    }
+    return true;
+  }
+
+  function toAssembly() {
+    if (!validate()) return;
+    if (draft) {
+      if (!updateAssembly({ orderId: draft.id, items, note, date })) {
+        toast("Не удалось сохранить");
+        return;
+      }
+      toast("Состав сборки обновлён");
+      void navigate({ to: "/orders/$orderId", params: { orderId: draft.id } });
+      return;
+    }
+    const id = createAssembly({ clientId, items, note, date });
+    if (!id) {
+      toast("Не удалось создать заказ");
+      return;
+    }
+    toast("Заказ ушёл на сборку — склад пока не списан");
+    void navigate({ to: "/orders/$orderId", params: { orderId: id } });
+  }
+
   function submit() {
     if (!clientId) {
       toast("Выберите клиента");
@@ -110,15 +156,20 @@ function NewOrderPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight">Новый заказ</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">
+          {draft ? "Состав сборки" : "Новый заказ"}
+        </h1>
         <p className="mt-1 text-sm text-muted">
-          Сначала клиент, потом состав. Недостающее уйдёт в предзаказ клиента.
+          {draft
+            ? "Меняется только список. Склад спишется при подтверждении сборки."
+            : "Впиши заказ → сверка со складом → «На сборку». Оформится после того, как соберёшь."}
         </p>
       </div>
 
       <Card className="space-y-3 p-4">
         <Label>Клиент</Label>
         <select
+          disabled={Boolean(draft)}
           value={clientId}
           onChange={(e) => setClientId(e.target.value)}
           className="h-11 w-full rounded-md border border-border bg-bg px-3 text-sm"
@@ -276,17 +327,29 @@ function NewOrderPage() {
         </div>
       </div>
 
-      <Card className="flex items-center justify-between p-4">
-        <div>
-          <div className="text-xs text-muted">Отгрузить</div>
-          <div className="font-medium">
-            {can} пар · {formatSum(can * SELL_PRICE)}
+      <Card className="space-y-3 p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-xs text-muted">Можно собрать со склада</div>
+            <div className="font-medium">
+              {can} пар · {formatSum(can * SELL_PRICE)}
+            </div>
           </div>
           {miss > 0 ? <Badge tone="warn">не хватает {miss}</Badge> : null}
         </div>
-        <Button disabled={can === 0 && miss === 0} onClick={submit}>
-          Оформить
+        <Button className="w-full" disabled={!items.length} onClick={toAssembly}>
+          {draft ? "Сохранить состав" : "На сборку"}
         </Button>
+        {!draft ? (
+          <Button
+            className="w-full"
+            variant="secondary"
+            disabled={can === 0 && miss === 0}
+            onClick={submit}
+          >
+            Оформить сразу, без сборки
+          </Button>
+        ) : null}
       </Card>
 
       {COLORS.some((c) => Object.values(cart[c]).some((q) => q > 0)) ? (

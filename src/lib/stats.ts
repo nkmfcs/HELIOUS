@@ -23,7 +23,7 @@ export function warehouseValue(state: WarehouseState): number {
 }
 
 export function orderDebt(o: Order): number {
-  if (o.status === "cancelled") return 0;
+  if (o.status !== "shipped") return 0;
   return Math.max(0, o.totalSum - o.paidSum);
 }
 

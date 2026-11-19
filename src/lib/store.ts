@@ -32,6 +32,8 @@ import {
   addItemsToStock,
   allocateOrder,
   itemTotal,
+  capItems,
+  subtractItems,
   normalizeOrderItems,
   normalizeStock,
   replaceOrderAllocation,
@@ -100,6 +102,28 @@ type Actions = {
         shortages?: StockShortage[];
       }
     | { ok: false; reason: "insufficient_stock"; shortages: StockShortage[] };
+  createAssembly: (input: {
+    clientId: string;
+    items: OrderItem[];
+    note?: string;
+    date?: string;
+  }) => string | null;
+  updateAssembly: (input: {
+    orderId: string;
+    items: OrderItem[];
+    note?: string;
+    date?: string;
+  }) => boolean;
+  setAssemblyPicked: (orderId: string, picked: OrderItem[]) => void;
+  confirmAssembly: (input: {
+    orderId: string;
+    picked: OrderItem[];
+    date?: string;
+  }) =>
+    | { ok: true; shipped: number; missing: number }
+    | { ok: false; reason: "not_found" | "empty" }
+    | { ok: false; reason: "insufficient_stock"; shortages: StockShortage[] };
+  deleteAssembly: (orderId: string) => boolean;
   cancelOrder: (
     orderId: string,
   ) =>
@@ -237,7 +261,7 @@ export const useWarehouse = create<Store>()(
 
       deleteClient: (id) => {
         const s = get();
-        if (s.orders.some((o) => o.clientId === id && o.status === "shipped")) return false;
+        if (s.orders.some((o) => o.clientId === id && o.status !== "cancelled")) return false;
         set({
           clients: s.clients.filter((c) => c.id !== id),
         });
@@ -397,6 +421,7 @@ export const useWarehouse = create<Store>()(
         const order = s.orders.find((candidate) => candidate.id === orderId);
         if (!order) return { ok: false, reason: "not_found" };
         if (order.status === "cancelled") return { ok: false, reason: "cancelled" };
+        if (order.status !== "shipped") return { ok: false, reason: "not_found" };
         if (itemTotal(order.items) !== order.totalPairs) {
           return { ok: false, reason: "invalid_history" };
         }
@@ -519,11 +544,132 @@ export const useWarehouse = create<Store>()(
         return { ok: true, shipped: totalPairs, missing: itemTotal(nextMissing), refunded: refund };
       },
 
+      createAssembly: ({ clientId, items, note = "", date = todayISO() }) => {
+        const requested = normalizeOrderItems(items);
+        if (!requested.length) return null;
+        const s = get();
+        if (!s.clients.some((client) => client.id === clientId)) return null;
+        const orderId = uid("o");
+        const totalPairs = itemTotal(requested);
+        set({
+          orders: [
+            ...s.orders,
+            {
+              id: orderId,
+              clientId,
+              date: validDate(date),
+              items: requested,
+              missing: [],
+              picked: [],
+              totalPairs,
+              totalSum: totalPairs * SELL_PRICE,
+              paidSum: 0,
+              status: "assembling",
+              note: note.trim(),
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        });
+        return orderId;
+      },
+
+      updateAssembly: ({ orderId, items, note, date }) => {
+        const s = get();
+        const order = s.orders.find((candidate) => candidate.id === orderId);
+        if (!order || order.status !== "assembling") return false;
+        const requested = normalizeOrderItems(items);
+        if (!requested.length) return false;
+        const totalPairs = itemTotal(requested);
+        set({
+          orders: s.orders.map((candidate) =>
+            candidate.id === orderId
+              ? {
+                  ...candidate,
+                  items: requested,
+                  picked: capItems(candidate.picked ?? [], requested),
+                  totalPairs,
+                  totalSum: totalPairs * SELL_PRICE,
+                  date: validDate(date, validDate(candidate.date)),
+                  note: note === undefined ? candidate.note : note.trim(),
+                }
+              : candidate,
+          ),
+        });
+        return true;
+      },
+
+      setAssemblyPicked: (orderId, picked) => {
+        set((s) => ({
+          orders: s.orders.map((candidate) =>
+            candidate.id === orderId && candidate.status === "assembling"
+              ? { ...candidate, picked: capItems(picked, candidate.items) }
+              : candidate,
+          ),
+        }));
+      },
+
+      confirmAssembly: ({ orderId, picked, date }) => {
+        const s = get();
+        const order = s.orders.find((candidate) => candidate.id === orderId);
+        if (!order || order.status !== "assembling") return { ok: false, reason: "not_found" };
+        const shippedItems = capItems(picked, order.items);
+        const missing = subtractItems(order.items, shippedItems);
+        if (!shippedItems.length && !missing.length) return { ok: false, reason: "empty" };
+        const allocation = replaceOrderAllocation(s.stock, [], shippedItems);
+        if (!allocation.ok) {
+          return { ok: false, reason: "insufficient_stock", shortages: allocation.shortages };
+        }
+        const totalPairs = itemTotal(allocation.items);
+        const totalSum = totalPairs * SELL_PRICE;
+        const recordDate = validDate(date, validDate(order.date));
+        const client = s.clients.find((candidate) => candidate.id === order.clientId);
+        set({
+          stock: allocation.stock,
+          orders: s.orders.map((candidate) =>
+            candidate.id === orderId
+              ? {
+                  ...candidate,
+                  date: recordDate,
+                  items: allocation.items,
+                  missing,
+                  picked: undefined,
+                  totalPairs,
+                  totalSum,
+                  status: "shipped" as const,
+                }
+              : candidate,
+          ),
+          events: [
+            ...s.events,
+            {
+              id: uid("ev"),
+              date: recordDate,
+              type: "order",
+              pairs: totalPairs,
+              sum: totalSum,
+              note: client ? `${client.name} ${client.shop}`.trim() : "Заказ",
+              clientId: order.clientId,
+              orderId,
+            },
+          ],
+        });
+        return { ok: true, shipped: totalPairs, missing: itemTotal(missing) };
+      },
+
+      deleteAssembly: (orderId) => {
+        const s = get();
+        const order = s.orders.find((candidate) => candidate.id === orderId);
+        if (!order || order.status !== "assembling") return false;
+        set({ orders: s.orders.filter((candidate) => candidate.id !== orderId) });
+        return true;
+      },
+
       cancelOrder: (orderId) => {
         const s = get();
         const o = s.orders.find((x) => x.id === orderId);
         if (!o) return { ok: false, reason: "not_found" };
         if (o.status === "cancelled") return { ok: false, reason: "already_cancelled" };
+        if (o.status !== "shipped") return { ok: false, reason: "not_found" };
         if (itemTotal(o.items) !== o.totalPairs) {
           return { ok: false, reason: "invalid_history" };
         }
