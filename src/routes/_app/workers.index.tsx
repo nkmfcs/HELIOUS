@@ -204,7 +204,18 @@ function WorkersPage() {
                   params={{ workerId: worker.id }}
                   className="helious-press flex items-center gap-3 px-4 py-4"
                 >
-                  <span className={cn("grid size-10 shrink-0 place-items-center rounded-xl text-sm font-semibold",worker.role==="sewing"?"bg-teal-500/10 text-teal-700":worker.role==="cutting"?"bg-amber-500/10 text-amber-700":worker.role==="packaging"?"bg-violet-500/10 text-violet-700":"bg-accent/10 text-accent")}>
+                  <span
+                    className={cn(
+                      "grid size-10 shrink-0 place-items-center rounded-xl text-sm font-semibold",
+                      worker.role === "sewing"
+                        ? "bg-teal-500/10 text-teal-700"
+                        : worker.role === "cutting"
+                          ? "bg-amber-500/10 text-amber-700"
+                          : worker.role === "packaging"
+                            ? "bg-violet-500/10 text-violet-700"
+                            : "bg-accent/10 text-accent",
+                    )}
+                  >
                     {worker.name.trim().slice(0, 1).toUpperCase()}
                   </span>
                   <div className="min-w-0 flex-1">

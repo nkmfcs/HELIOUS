@@ -15,6 +15,7 @@ import { OrderEditor } from "@/components/order-editor";
 import { OrderAssembly } from "@/components/order-assembly";
 import { OrderTopUp } from "@/components/order-top-up";
 import { confirmDeleteOrder } from "@/components/order-delete";
+import { priceOf } from "@/lib/pricing";
 
 export const Route = createFileRoute("/_app/orders/$orderId")({ component: OrderPage });
 
@@ -195,6 +196,39 @@ function OrderPage() {
       ) : null}
 
       {order.items.length > 0 ? (
+        <Card className="overflow-hidden">
+          <div className="border-b border-border px-4 py-3 text-sm font-medium">Собрано</div>
+          <table className="w-full text-sm">
+            <tbody>
+              {COLORS.map((c) => {
+                const pairs = order.items
+                  .filter((i) => i.color === c)
+                  .reduce((sum, i) => sum + i.qty, 0);
+                if (!pairs) return null;
+                const price = priceOf(order.prices, c);
+                return (
+                  <tr key={c} className="border-t border-border/70 first:border-t-0">
+                    <td className="px-4 py-2 font-medium">{colorLabel(c)}</td>
+                    <td className="px-2 py-2 text-right font-mono tabular">{pairs} пар</td>
+                    <td className="px-2 py-2 text-right text-xs text-muted">
+                      × {formatNum(price)}
+                    </td>
+                    <td className="px-4 py-2 text-right tabular">{formatSum(pairs * price)}</td>
+                  </tr>
+                );
+              })}
+              <tr className="border-t border-border bg-elevated/50 font-medium">
+                <td className="px-4 py-2">Итого</td>
+                <td className="px-2 py-2 text-right font-mono tabular">{order.totalPairs} пар</td>
+                <td />
+                <td className="px-4 py-2 text-right tabular">{formatSum(order.totalSum)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </Card>
+      ) : null}
+
+      {order.items.length > 0 ? (
         <Card className="p-4">
           <h3 className="mb-2 text-sm font-medium">Откуда доставали</h3>
           <div className="space-y-1 text-sm">
@@ -213,8 +247,14 @@ function OrderPage() {
         if (!rows.length) return null;
         return (
           <Card key={c} className="overflow-hidden">
-            <div className="border-b border-border px-4 py-3 text-sm font-medium">
-              {colorLabel(c)}
+            <div className="flex items-baseline justify-between border-b border-border px-4 py-3 text-sm">
+              <span className="font-medium">{colorLabel(c)}</span>
+              <span className="text-muted">
+                <span className="font-mono font-medium text-fg tabular">
+                  {rows.reduce((sum, i) => sum + i.qty, 0)} пар
+                </span>{" "}
+                · {formatSum(rows.reduce((sum, i) => sum + i.qty, 0) * priceOf(order.prices, c))}
+              </span>
             </div>
             <table className="w-full text-sm">
               <tbody>

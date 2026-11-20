@@ -5,7 +5,11 @@ export function Card({ className, children }: { className?: string; children: Re
 }
 
 export function Group({ className, children }: { className?: string; children: React.ReactNode }) {
-  return <div className={cn("helious-card overflow-hidden rounded-lg bg-surface", className)}>{children}</div>;
+  return (
+    <div className={cn("helious-card overflow-hidden rounded-lg bg-surface", className)}>
+      {children}
+    </div>
+  );
 }
 
 export function SectionLabel({ children }: { children: React.ReactNode }) {
@@ -34,7 +38,9 @@ export function Stat({
   return (
     <div className="min-w-0">
       <div className="text-xs text-muted">{label}</div>
-      <div className={cn("mt-1 break-words text-2xl font-semibold leading-tight tabular", color)}>{value}</div>
+      <div className={cn("mt-1 break-words text-2xl font-semibold leading-tight tabular", color)}>
+        {value}
+      </div>
       {hint ? <div className="mt-1.5 text-xs text-subtle">{hint}</div> : null}
     </div>
   );

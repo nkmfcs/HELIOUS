@@ -13,7 +13,9 @@ import { colorLabel, formatSum, todayISO } from "@/lib/format";
 import { parseOrderText, type ParseUnit } from "@/lib/order-parser";
 import { cartToItems, emptyCart, useWarehouse } from "@/lib/store";
 import { checkAvailability } from "@/lib/stats";
-import { COLORS, SELL_PRICE, SIZES, type Color } from "@/lib/types";
+import { COLORS, SIZES, type Color, type ColorPrices } from "@/lib/types";
+import { PricePicker } from "@/components/price-picker";
+import { itemsSum } from "@/lib/pricing";
 import { cn } from "@/lib/utils";
 
 type Search = { clientId?: string; editId?: string };
@@ -55,6 +57,17 @@ function NewOrderPage() {
   });
   const [ai, setAi] = useState("");
   const [unit, setUnit] = useState<ParseUnit>("pairs");
+  const orders = useWarehouse((s) => s.orders);
+  // Новый заказ берёт цены последнего заказа этого клиента — обычно они повторяются.
+  const lastPricesFor = (id: string): ColorPrices | undefined =>
+    [...orders]
+      .filter((o) => o.clientId === id && o.status !== "cancelled")
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]?.prices;
+  const [prices, setPrices] = useState<ColorPrices | undefined>(() =>
+    draft
+      ? draft.prices
+      : lastPricesFor(search.clientId ?? clients[0]?.id ?? ""),
+  );
   const [note, setNote] = useState(draft?.note ?? "");
   const [date, setDate] = useState(draft?.date ?? todayISO());
 
@@ -118,7 +131,7 @@ function NewOrderPage() {
   function toAssembly() {
     if (!validate()) return;
     if (draft) {
-      if (!updateAssembly({ orderId: draft.id, items, note, date })) {
+      if (!updateAssembly({ orderId: draft.id, items, prices: prices ?? {}, note, date })) {
         toast("Не удалось сохранить");
         return;
       }
@@ -126,7 +139,7 @@ function NewOrderPage() {
       void navigate({ to: "/orders/$orderId", params: { orderId: draft.id } });
       return;
     }
-    const id = createAssembly({ clientId, items, note, date });
+    const id = createAssembly({ clientId, items, prices, note, date });
     if (!id) {
       toast("Не удалось создать заказ");
       return;
@@ -144,7 +157,7 @@ function NewOrderPage() {
       toast("Пустой заказ");
       return;
     }
-    const res = shipOrder({ clientId, items, note, date });
+    const res = shipOrder({ clientId, items, prices, note, date });
     if (!res) {
       toast("Нечего отгружать");
       return;
@@ -171,7 +184,10 @@ function NewOrderPage() {
         <select
           disabled={Boolean(draft)}
           value={clientId}
-          onChange={(e) => setClientId(e.target.value)}
+          onChange={(e) => {
+            setClientId(e.target.value);
+            setPrices(lastPricesFor(e.target.value));
+          }}
           className="h-11 w-full rounded-md border border-border bg-bg px-3 text-sm"
         >
           <option value="">— выбрать —</option>
@@ -312,6 +328,12 @@ function NewOrderPage() {
         </Card>
       ) : null}
 
+      <PricePicker
+        value={prices}
+        onChange={setPrices}
+        usedColors={[...new Set(items.map((i) => i.color))]}
+      />
+
       <div className="grid grid-cols-2 gap-3">
         <div>
           <Label>Дата</Label>
@@ -332,7 +354,13 @@ function NewOrderPage() {
           <div>
             <div className="text-xs text-muted">Можно собрать со склада</div>
             <div className="font-medium">
-              {can} пар · {formatSum(can * SELL_PRICE)}
+              {can} пар ·{" "}
+              {formatSum(
+                itemsSum(
+                  checked.map((i) => ({ ...i, qty: i.can })),
+                  prices,
+                ),
+              )}
             </div>
           </div>
           {miss > 0 ? <Badge tone="warn">не хватает {miss}</Badge> : null}
