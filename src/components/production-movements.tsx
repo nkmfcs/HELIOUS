@@ -184,6 +184,16 @@ export function ProductionMovements() {
     )
     .slice()
     .reverse();
+  // Ручные начисления тому же работнику в тот же день — частая причина двойной записи.
+  const manualSameDay = pending
+    ? (state.payables ?? []).filter(
+        (p) =>
+          !p.productionMoveId &&
+          p.workerId &&
+          p.workerId === pending.input.workerId &&
+          p.date === pending.input.date,
+      )
+    : [];
   function requestVoid(ids: string[]) {
     setVoidPending({ ids, token: productionToken(state) });
   }
@@ -258,9 +268,11 @@ export function ProductionMovements() {
     setPending(undefined);
     setCompactSizes(true);
   }
-  function save() {
+  function save(rateOverride?: number) {
     if (!pending) return;
-    const err = state.confirmProductionMove(pending.input, pending.token, pending.id);
+    const input =
+      rateOverride === undefined ? pending.input : { ...pending.input, rate: rateOverride };
+    const err = state.confirmProductionMove(input, pending.token, pending.id);
     if (err) {
       toast.error(err);
       setPending(undefined);
@@ -814,10 +826,28 @@ export function ProductionMovements() {
                 </div>
               ))}
             </div>
-            {earnsForMove(pending.input.kind) ? (
-              <p className="font-medium text-sm">
-                Начисление: {formatNum(total(pending.input.items) * (pending.input.rate ?? 0))} сум
-              </p>
+            {earnsForMove(pending.input.kind) && (pending.input.rate ?? 0) > 0 ? (
+              <div className="space-y-2 rounded-md bg-elevated p-3 text-sm">
+                <div className="font-medium">
+                  Начислить {workerName(pending.input.workerId) || "работнику"}{" "}
+                  {formatNum(total(pending.input.items) * (pending.input.rate ?? 0))} сум?
+                </div>
+                {manualSameDay.length ? (
+                  <p className="text-warn">
+                    За {pending.input.date} уже есть начисление, внесённое вручную:{" "}
+                    {manualSameDay
+                      .map((p) => `${p.pairs ? p.pairs + " пар · " : ""}${formatNum(p.amount)} сум`)
+                      .join(", ")}
+                    . Если это та же партия — выберите «Без начисления».
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted">
+                    Если деньги за эти пары уже внесены вручную — выберите «Без начисления».
+                  </p>
+                )}
+              </div>
+            ) : earnsForMove(pending.input.kind) ? (
+              <p className="text-sm text-muted">Без начисления денег.</p>
             ) : null}
             {pending.input.kind === "warehouse-in" ? (
               <p className="text-warn text-sm">
@@ -830,10 +860,23 @@ export function ProductionMovements() {
               <Button variant="secondary" className="flex-1" onClick={() => setPending(undefined)}>
                 Исправить
               </Button>
-              <Button className="flex-1" onClick={save}>
-                Подтвердить
-              </Button>
+              {earnsForMove(pending.input.kind) && (pending.input.rate ?? 0) > 0 ? null : (
+                <Button className="flex-1" onClick={() => save()}>
+                  Подтвердить
+                </Button>
+              )}
             </div>
+            {earnsForMove(pending.input.kind) && (pending.input.rate ?? 0) > 0 ? (
+              <div className="grid gap-2">
+                <Button onClick={() => save()}>
+                  Да, начислить {formatNum(total(pending.input.items) * (pending.input.rate ?? 0))}{" "}
+                  сум
+                </Button>
+                <Button variant="secondary" onClick={() => save(0)}>
+                  Без начисления — уже внёс сам
+                </Button>
+              </div>
+            ) : null}
           </Card>
         </div>
       ) : null}

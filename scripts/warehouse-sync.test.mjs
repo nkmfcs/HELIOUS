@@ -956,3 +956,78 @@ test("per-color prices: gray and gold at 20 000, the rest at 18 000", () => {
   pc.actions().confirmAssembly({ orderId: id, picked: [{ color: "gold", size: 21, qty: 10 }] });
   assert.equal(pc.state().orders.find((o) => o.id === id).totalSum, 200_000);
 });
+
+test("sewing receipt can skip the accrual, and a wrong accrual can be dropped", () => {
+  const server = makeServer(null);
+  const pc = browser(server);
+  pc.edit((s) => {
+    s.workers = [
+      {
+        id: "w-s",
+        name: "Сапура опа",
+        role: "sewing",
+        phone: "",
+        note: "",
+        rate: 4000,
+        createdAt: "",
+      },
+    ];
+    s.productionMoves = [];
+    s.payables = [
+      {
+        id: "manual",
+        person: "Сапура опа",
+        workerId: "w-s",
+        amount: 560_000,
+        paidSum: 0,
+        pairs: 140,
+        rate: 4000,
+        note: "Принял пары",
+        date: "2026-11-20",
+      },
+    ];
+  });
+  const a = pc.actions();
+  const rows = [{ color: "white", size: 20, qty: 150 }];
+  const date = "2026-11-20";
+  const step = (input) => {
+    const err = pc
+      .actions()
+      .confirmProductionMove({ note: "", date, ...input }, productionTokenOf(pc));
+    assert.equal(err, null);
+  };
+  step({ kind: "opening", items: rows, openingTo: "sewing:w-s" });
+  // «Без начисления — уже внёс сам»
+  step({
+    kind: "sewn-in",
+    items: [{ color: "white", size: 20, qty: 75 }],
+    workerId: "w-s",
+    rate: 0,
+  });
+  assert.equal(pc.state().payables.length, 1, "ручное начисление не задублировано");
+
+  // Старое поведение: начислило автоматически — убираем начисление.
+  step({ kind: "sewn-in", items: [{ color: "white", size: 20, qty: 75 }], workerId: "w-s" });
+  const auto = pc.state().payables.find((p) => p.productionMoveId);
+  assert.equal(auto.amount, 300_000);
+  assert.equal(pc.actions().dropProductionAccrual(auto.productionMoveId), null);
+  assert.deepEqual(
+    pc.state().payables.map((p) => p.id),
+    ["manual"],
+  );
+  const move = pc.state().productionMoves.find((m) => m.id === auto.productionMoveId);
+  assert.equal(move.rate, 0);
+  assert.equal(move.items[0].qty, 75, "пары остаются принятыми");
+  void a;
+});
+
+function productionTokenOf(device) {
+  const s = device.state();
+  return JSON.stringify([
+    s.productionMoves ?? [],
+    s.productionBatches,
+    s.stock,
+    s.workers,
+    s.payables,
+  ]);
+}

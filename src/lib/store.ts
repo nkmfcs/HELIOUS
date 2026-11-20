@@ -197,6 +197,11 @@ type Actions = {
   createProductionBatch: (input: { items: OrderItem[]; note?: string }) => string | null;
   confirmProductionMove: (input: ProductionMoveInput, expected: string, editingId?: string) => string | null;
   voidProductionMoves: (ids: string[], expected: string) => string | null;
+  /**
+   * Убирает деньги, начисленные приёмкой производства (ставка → 0).
+   * Пары остаются принятыми. Нужно, когда сумма уже внесена вручную.
+   */
+  dropProductionAccrual: (moveId: string) => string | null;
   advanceProductionBatch: (input: {
     batchId: string;
     nextStage?: ProductionStage;
@@ -1229,6 +1234,42 @@ export const useWarehouse = create<Store>()(
           events.push({id:incomingId+":event",date:move.date,type:"incoming",pairs:totalPairs,sum:0,note:"Подтверждённая приёмка продукции",incomingId});
         }
         set({productionMoves:moves,stock,incoming,events});
+        return null;
+      },
+
+      dropProductionAccrual: (moveId) => {
+        const state = get();
+        const payable = (state.payables ?? []).find((p) => p.productionMoveId === moveId);
+        if (!payable) return "Начисление не найдено";
+        if (payable.paidSum > 0) return "По этому начислению уже есть выплата — сначала исправьте выплату";
+        const at = new Date().toISOString();
+        set({
+          payables: state.payables.filter((p) => p.productionMoveId !== moveId),
+          productionMoves: (state.productionMoves ?? []).map((m) =>
+            m.id === moveId
+              ? {
+                  ...m,
+                  rate: 0,
+                  audit: [
+                    ...(m.audit ?? []),
+                    {
+                      at,
+                      before: {
+                        kind: m.kind,
+                        items: m.items,
+                        workerId: m.workerId,
+                        planId: m.planId,
+                        openingTo: m.openingTo,
+                        rate: m.rate,
+                        note: m.note,
+                        date: m.date,
+                      },
+                    },
+                  ],
+                }
+              : m,
+          ),
+        });
         return null;
       },
 
