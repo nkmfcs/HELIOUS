@@ -7,6 +7,7 @@ import {
   PackageCheck,
   Pencil,
   Phone,
+  Trash2,
   UserRound,
 } from "lucide-react";
 import { useState } from "react";
@@ -35,6 +36,7 @@ function WorkerPage() {
   const addWorkerDebt = useWarehouse((store) => store.addWorkerDebt);
   const addWorkerPairs = useWarehouse((store) => store.addWorkerPairs);
   const payPayable = useWarehouse((store) => store.payPayable);
+  const dropProductionAccrual = useWarehouse((store) => store.dropProductionAccrual);
   const updateWorker = useWarehouse((store) => store.updateWorker);
   const worker = (state.workers ?? []).find((entry) => entry.id === workerId);
 
@@ -506,6 +508,27 @@ function WorkerPage() {
                     >
                       <Pencil className="size-4" />
                     </Button>
+                    {entry.productionMoveId && entry.paidSum === 0 ? (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        aria-label="Убрать начисление"
+                        title="Убрать начисление — сумма уже внесена вручную"
+                        onClick={() => {
+                          if (
+                            !confirm(
+                              `Убрать начисление ${formatNum(entry.amount)} за эту приёмку?\n\nПары останутся принятыми, деньги не начислятся. Используйте, если сумму уже внесли вручную.`,
+                            )
+                          )
+                            return;
+                          const error = dropProductionAccrual(entry.productionMoveId!);
+                          if (error) toast.error(error);
+                          else toast(`Начисление ${formatNum(entry.amount)} убрано`);
+                        }}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    ) : null}
                     <Button
                       size="sm"
                       disabled={editingAccrual?.id === entry.id}
