@@ -884,3 +884,75 @@ test("order goes to assembly without touching stock, ships on confirm, then is t
   assert.equal(pc.actions().deleteAssembly(draft), true);
   assert.equal(pc.state().stock.white[17], 10);
 });
+
+test("deleting orders returns stock once: shipped → back to stock, cancelled → untouched", () => {
+  const server = makeServer(null);
+  const pc = browser(server);
+  const data = pc.state();
+  data.clients = [{ id: "c1", name: "Мурод", shop: "", phone: "", note: "", createdAt: "" }];
+  data.stock.white[17] = 50;
+  pc.edit((s) => Object.assign(s, data));
+
+  const a = pc
+    .actions()
+    .shipOrder({ clientId: "c1", items: [{ color: "white", size: 17, qty: 20 }] });
+  assert.equal(pc.state().stock.white[17], 30);
+  const del = pc.actions().deleteOrder(a.orderId);
+  assert.equal(del.ok, true);
+  assert.equal(del.returned, 20);
+  assert.equal(pc.state().stock.white[17], 50);
+  assert.equal(pc.state().orders.length, 0);
+  assert.equal(pc.state().events.filter((e) => e.orderId === a.orderId).length, 0);
+
+  const b = pc
+    .actions()
+    .shipOrder({ clientId: "c1", items: [{ color: "white", size: 17, qty: 10 }] });
+  pc.actions().cancelOrder(b.orderId);
+  assert.equal(pc.state().stock.white[17], 50);
+  assert.equal(pc.actions().deleteOrder(b.orderId).returned, 0);
+  assert.equal(pc.state().stock.white[17], 50, "отменённый не возвращается второй раз");
+  assert.equal(pc.state().orders.length, 0);
+});
+
+test("per-color prices: gray and gold at 20 000, the rest at 18 000", () => {
+  const server = makeServer(null);
+  const pc = browser(server);
+  const data = pc.state();
+  data.clients = [{ id: "c1", name: "Шерзод", shop: "", phone: "", note: "", createdAt: "" }];
+  data.stock.white[17] = 50;
+  data.stock.gray[20] = 50;
+  data.stock.gold[21] = 50;
+  pc.edit((s) => Object.assign(s, data));
+
+  const prices = { gray: 20_000, gold: 20_000, white: 18_000 };
+  const r = pc.actions().shipOrder({
+    clientId: "c1",
+    prices,
+    items: [
+      { color: "white", size: 17, qty: 10 },
+      { color: "gray", size: 20, qty: 10 },
+      { color: "gold", size: 21, qty: 5 },
+    ],
+  });
+  let order = pc.state().orders.find((o) => o.id === r.orderId);
+  assert.equal(order.totalSum, 10 * 18_000 + 10 * 20_000 + 5 * 20_000);
+  assert.deepEqual({ ...order.prices }, { gray: 20_000, gold: 20_000 });
+
+  // Дополнение без указания цен сохраняет цены заказа.
+  pc.actions().updateOrder({
+    orderId: r.orderId,
+    items: [...order.items, { color: "gray", size: 20, qty: 5 }],
+    missing: [],
+  });
+  order = pc.state().orders.find((o) => o.id === r.orderId);
+  assert.equal(order.totalSum, 10 * 18_000 + 15 * 20_000 + 5 * 20_000);
+
+  // Сборка: цена фиксируется при создании и применяется при подтверждении.
+  const id = pc.actions().createAssembly({
+    clientId: "c1",
+    prices: { gold: 20_000 },
+    items: [{ color: "gold", size: 21, qty: 10 }],
+  });
+  pc.actions().confirmAssembly({ orderId: id, picked: [{ color: "gold", size: 21, qty: 10 }] });
+  assert.equal(pc.state().orders.find((o) => o.id === id).totalSum, 200_000);
+});

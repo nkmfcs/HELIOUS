@@ -11,7 +11,9 @@ import { boxOf } from "@/lib/boxes";
 import { colorLabel, formatNum, formatSum } from "@/lib/format";
 import { addItemsToStock } from "@/lib/inventory";
 import { cartToItems, emptyCart, useWarehouse } from "@/lib/store";
-import { SELL_PRICE, SIZES, type Color, type OrderItem } from "@/lib/types";
+import { SIZES, type Color, type ColorPrices, type OrderItem } from "@/lib/types";
+import { PricePicker } from "@/components/price-picker";
+import { itemsSum } from "@/lib/pricing";
 import { cn } from "@/lib/utils";
 
 type Cart = Record<Color, Record<number, number>>;
@@ -43,6 +45,7 @@ export function OrderEditor({
   const [missingCart, setMissingCart] = useState<Cart>(() => cartFromItems(order?.missing ?? []));
   const [date, setDate] = useState(order?.date ?? "");
   const [note, setNote] = useState(order?.note ?? "");
+  const [prices, setPrices] = useState<ColorPrices | undefined>(order?.prices);
 
   const items = useMemo(() => cartToItems(itemsCart), [itemsCart]);
   const missing = useMemo(() => cartToItems(missingCart), [missingCart]);
@@ -52,7 +55,7 @@ export function OrderEditor({
   );
   const shippedTotal = items.reduce((sum, item) => sum + item.qty, 0);
   const missingTotal = missing.reduce((sum, item) => sum + item.qty, 0);
-  const totalSum = shippedTotal * SELL_PRICE;
+  const totalSum = itemsSum(items, prices);
   const shortages = items
     .map((item) => ({ ...item, have: releasedStock[item.color][item.size] ?? 0 }))
     .filter((item) => item.qty > item.have);
@@ -75,7 +78,7 @@ export function OrderEditor({
     ) {
       return;
     }
-    const result = updateOrder({ orderId, items, missing, note, date });
+    const result = updateOrder({ orderId, items, missing, prices: prices ?? {}, note, date });
     if (!result.ok) {
       if (result.reason === "insufficient_stock") {
         const detail = result.shortages
@@ -188,6 +191,12 @@ export function OrderEditor({
             .join(" · ")}
         </Card>
       ) : null}
+
+      <PricePicker
+        value={prices}
+        onChange={setPrices}
+        usedColors={[...new Set(items.map((i) => i.color))]}
+      />
 
       <div className="grid grid-cols-2 gap-3">
         <div>

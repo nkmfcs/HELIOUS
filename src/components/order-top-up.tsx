@@ -9,7 +9,8 @@ import { boxOf } from "@/lib/boxes";
 import { colorLabel, formatSum } from "@/lib/format";
 import { normalizeOrderItems, subtractItems } from "@/lib/inventory";
 import { cartToItems, emptyCart, useWarehouse } from "@/lib/store";
-import { SELL_PRICE, SIZES, type Color, type Order } from "@/lib/types";
+import { SIZES, type Color, type Order } from "@/lib/types";
+import { itemsSum } from "@/lib/pricing";
 import { cn } from "@/lib/utils";
 
 type Cart = Record<Color, Record<number, number>>;
@@ -209,14 +210,14 @@ export function OrderTopUp({ order, onDone }: { order: Order; onDone: () => void
         <div className="flex items-center justify-between text-sm">
           <span className="text-muted">Добавится</span>
           <span className="font-medium">
-            +{addPairs} пар · +{formatSum(addPairs * SELL_PRICE)}
+            +{addPairs} пар · +{formatSum(itemsSum(add, order.prices))}
           </span>
         </div>
         <div className="flex items-center justify-between text-sm">
           <span className="text-muted">Заказ станет</span>
           <span>
             {order.totalPairs + addPairs} пар ·{" "}
-            {formatSum((order.totalPairs + addPairs) * SELL_PRICE)}
+            {formatSum(order.totalSum + itemsSum(add, order.prices))}
           </span>
         </div>
         <Button className="w-full" disabled={!addPairs} onClick={save}>

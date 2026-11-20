@@ -90,15 +90,26 @@ function ClientPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <div className="helious-metric"><Stat
-          label="Долг"
-          value={formatCompact(debt)}
-          tone={debt > 0 ? "danger" : "ok"}
-          hint="сум"
-        /></div>
-        <div className="helious-metric"><Stat label="Оборот" value={formatCompact(clientTurnover(state, client.id))} /></div>
-        <div className="helious-metric"><Stat label="Пар взял" value={formatNum(clientPairs(state, client.id))} /></div>
-        <div className="helious-metric"><Stat label="Заказов" value={String(orders.filter((o) => o.status === "shipped").length)} /></div>
+        <div className="helious-metric">
+          <Stat
+            label="Долг"
+            value={formatCompact(debt)}
+            tone={debt > 0 ? "danger" : "ok"}
+            hint="сум"
+          />
+        </div>
+        <div className="helious-metric">
+          <Stat label="Оборот" value={formatCompact(clientTurnover(state, client.id))} />
+        </div>
+        <div className="helious-metric">
+          <Stat label="Пар взял" value={formatNum(clientPairs(state, client.id))} />
+        </div>
+        <div className="helious-metric">
+          <Stat
+            label="Заказов"
+            value={String(orders.filter((o) => o.status === "shipped").length)}
+          />
+        </div>
       </div>
 
       {debt > 0 ? (

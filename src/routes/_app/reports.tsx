@@ -85,10 +85,18 @@ function ReportsPage() {
           </select>
         </div>
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <div className="helious-metric"><Stat label="Заказов" value={formatNum(summary.orderCount)} /></div>
-          <div className="helious-metric"><Stat label="Пар" value={formatNum(summary.shippedPairs)} /></div>
-          <div className="helious-metric"><Stat label="Выставлено" value={formatCompact(summary.billed)} /></div>
-          <div className="helious-metric"><Stat label="Получено" value={formatCompact(summary.paid)} tone="ok" /></div>
+          <div className="helious-metric">
+            <Stat label="Заказов" value={formatNum(summary.orderCount)} />
+          </div>
+          <div className="helious-metric">
+            <Stat label="Пар" value={formatNum(summary.shippedPairs)} />
+          </div>
+          <div className="helious-metric">
+            <Stat label="Выставлено" value={formatCompact(summary.billed)} />
+          </div>
+          <div className="helious-metric">
+            <Stat label="Получено" value={formatCompact(summary.paid)} tone="ok" />
+          </div>
         </div>
         {chart.length > 0 ? (
           <Card className="p-4">
@@ -194,13 +202,21 @@ function ReportsPage() {
           />
         </div>
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <div className="helious-metric"><Stat label="Заказов" value={String(daily.orderCount)} /></div>
-          <div className="helious-metric"><Stat label="Отгружено пар" value={formatNum(daily.shippedPairs)} /></div>
-          <div className="helious-metric"><Stat label="Выставлено" value={formatCompact(daily.billed)} /></div>
-          <div className="helious-metric"><Stat
-            label="Приход / оплата"
-            value={`${daily.incomingPairs} / ${formatCompact(daily.paid)}`}
-          /></div>
+          <div className="helious-metric">
+            <Stat label="Заказов" value={String(daily.orderCount)} />
+          </div>
+          <div className="helious-metric">
+            <Stat label="Отгружено пар" value={formatNum(daily.shippedPairs)} />
+          </div>
+          <div className="helious-metric">
+            <Stat label="Выставлено" value={formatCompact(daily.billed)} />
+          </div>
+          <div className="helious-metric">
+            <Stat
+              label="Приход / оплата"
+              value={`${daily.incomingPairs} / ${formatCompact(daily.paid)}`}
+            />
+          </div>
         </div>
         <Card className="divide-y divide-border">
           {dayEvents.length === 0 ? (

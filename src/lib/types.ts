@@ -8,6 +8,8 @@ export type Color = (typeof COLORS)[number];
 
 export const PACK = 5;
 export const SELL_PRICE = 18_000;
+/** Цена за пару по цветам в конкретном заказе. Нет цвета — значит SELL_PRICE. */
+export type ColorPrices = Partial<Record<Color, number>>;
 
 export type ColorStock = Record<number, number>;
 export type Stock = Record<Color, ColorStock>;
@@ -41,6 +43,8 @@ export type Order = {
    * shipped — сборка подтверждена, заказ задокументирован, склад списан.
    */
   status: "assembling" | "shipped" | "cancelled";
+  /** Цены этого заказа по цветам (например, серые и золотые по 20 000). */
+  prices?: ColorPrices;
   /** Сколько уже собрано по каждой позиции, пока заказ в статусе assembling. */
   picked?: OrderItem[];
   note: string;
@@ -163,7 +167,7 @@ export function workerRoleLabel(role: WorkerRole): string {
 }
 
 export type ProductionMoveKind =
-  | "cut-in" | "cut-out" | "sewn-in" | "pack-out" | "packed-in" | "warehouse-in" | "opening";
+  "cut-in" | "cut-out" | "sewn-in" | "pack-out" | "packed-in" | "warehouse-in" | "opening";
 export type ProductionMoveInput = {
   kind: ProductionMoveKind;
   items: OrderItem[];

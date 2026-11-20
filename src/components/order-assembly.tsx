@@ -11,7 +11,8 @@ import { Input, Label } from "@/components/ui/input";
 import { groupItemsByBox } from "@/lib/boxes";
 import { colorLabel, formatDate, formatSum, todayISO } from "@/lib/format";
 import { useWarehouse } from "@/lib/store";
-import { SELL_PRICE, type Order, type OrderItem } from "@/lib/types";
+import { type Order, type OrderItem } from "@/lib/types";
+import { hasCustomPrices, itemsSum, priceOf } from "@/lib/pricing";
 import { cn } from "@/lib/utils";
 
 const key = (i: { color: string; size: number }) => `${i.color}-${i.size}`;
@@ -147,6 +148,22 @@ export function OrderAssembly({ order }: { order: Order }) {
             ? ` · на складе нет ${shortage} — уйдут в предзаказ`
             : " · всё есть на складе"}
         </div>
+        <div className="flex flex-wrap gap-x-4 gap-y-1 pt-1 text-xs">
+          {[...new Set(rows.map((r) => r.color))].map((c) => {
+            const cr = rows.filter((r) => r.color === c);
+            return (
+              <span key={c}>
+                {colorLabel(c)}:{" "}
+                <span className="font-mono font-medium tabular">
+                  {cr.reduce((s, r) => s + r.got, 0)}/{cr.reduce((s, r) => s + r.qty, 0)}
+                </span>
+                {hasCustomPrices(order.prices) ? (
+                  <span className="text-muted"> · {priceOf(order.prices, c)}</span>
+                ) : null}
+              </span>
+            );
+          })}
+        </div>
         {!done ? (
           <Button variant="secondary" size="sm" className="w-full" onClick={pickAll}>
             Отметить всё доступное как собранное
@@ -237,7 +254,13 @@ export function OrderAssembly({ order }: { order: Order }) {
         <div className="flex items-center justify-between text-sm">
           <span className="text-muted">К оформлению</span>
           <span className="font-medium">
-            {collected} пар · {formatSum(collected * SELL_PRICE)}
+            {collected} пар ·{" "}
+            {formatSum(
+              itemsSum(
+                rows.map((r) => ({ color: r.color, size: r.size, qty: r.got })),
+                order.prices,
+              ),
+            )}
           </span>
         </div>
         <Button className="w-full" disabled={collected === 0 && canCollect > 0} onClick={confirm_}>

@@ -1,3 +1,4 @@
+import { itemsSum, normalizePrices } from "./pricing.ts";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { LEGACY_PRIVATE_DATA_REV, SEED } from "./seed";
@@ -8,6 +9,7 @@ import {
   SELL_PRICE,
   SIZES,
   type Color,
+  type ColorPrices,
   type Costs,
   type CashKind,
   type OrderItem,
@@ -85,6 +87,7 @@ type Actions = {
   shipOrder: (input: {
     clientId: string;
     items: OrderItem[];
+    prices?: ColorPrices;
     note?: string;
     date?: string;
   }) => { orderId: string; shipped: number; missing: OrderItem[] } | null;
@@ -92,6 +95,8 @@ type Actions = {
     orderId: string;
     items: OrderItem[];
     missing: OrderItem[];
+    /** Не передано — остаются цены заказа. */
+    prices?: ColorPrices;
     note?: string;
     date?: string;
   }) =>
@@ -105,12 +110,14 @@ type Actions = {
   createAssembly: (input: {
     clientId: string;
     items: OrderItem[];
+    prices?: ColorPrices;
     note?: string;
     date?: string;
   }) => string | null;
   updateAssembly: (input: {
     orderId: string;
     items: OrderItem[];
+    prices?: ColorPrices;
     note?: string;
     date?: string;
   }) => boolean;
@@ -124,6 +131,16 @@ type Actions = {
     | { ok: false; reason: "not_found" | "empty" }
     | { ok: false; reason: "insufficient_stock"; shortages: StockShortage[] };
   deleteAssembly: (orderId: string) => boolean;
+  /**
+   * Удаляет заказ из списка. Активный заказ сначала отменяется (пары
+   * возвращаются на склад, оплата — возвратом клиенту). Отменённый заказ
+   * склад уже вернул при отмене, поэтому склад не трогается повторно.
+   */
+  deleteOrder: (
+    orderId: string,
+  ) =>
+    | { ok: true; returned: number; refunded: number }
+    | { ok: false; reason: "not_found" | "invalid_history" };
   cancelOrder: (
     orderId: string,
   ) =>
@@ -363,7 +380,7 @@ export const useWarehouse = create<Store>()(
         });
       },
 
-      shipOrder: ({ clientId, items, note = "", date = todayISO() }) => {
+      shipOrder: ({ clientId, items, prices, note = "", date = todayISO() }) => {
         const requested = normalizeOrderItems(items);
         if (!requested.length) return null;
         const s = get();
@@ -375,7 +392,8 @@ export const useWarehouse = create<Store>()(
         if (totalPairs === 0 && missing.length === 0) return null;
 
         const orderId = uid("o");
-        const totalSum = totalPairs * SELL_PRICE;
+        const orderPrices = normalizePrices(prices);
+        const totalSum = itemsSum(shipped, orderPrices);
         const client = s.clients.find((c) => c.id === clientId);
         const recordDate = validDate(date);
         const recordNote = note.trim();
@@ -390,6 +408,7 @@ export const useWarehouse = create<Store>()(
               date: recordDate,
               items: shipped,
               missing,
+              ...(orderPrices ? { prices: orderPrices } : {}),
               totalPairs,
               totalSum,
               paidSum: 0,
@@ -416,7 +435,7 @@ export const useWarehouse = create<Store>()(
         return { orderId, shipped: totalPairs, missing };
       },
 
-      updateOrder: ({ orderId, items, missing, note, date }) => {
+      updateOrder: ({ orderId, items, missing, prices, note, date }) => {
         const s = get();
         const order = s.orders.find((candidate) => candidate.id === orderId);
         if (!order) return { ok: false, reason: "not_found" };
@@ -434,7 +453,8 @@ export const useWarehouse = create<Store>()(
 
         const totalPairs = itemTotal(allocation.items);
         if (totalPairs === 0 && nextMissing.length === 0) return { ok: false, reason: "empty" };
-        const totalSum = totalPairs * SELL_PRICE;
+        const nextPrices = prices === undefined ? order.prices : normalizePrices(prices);
+        const totalSum = itemsSum(allocation.items, nextPrices);
         const refund = Math.max(0, order.paidSum - totalSum);
         const refundId = refund > 0 ? uid("p") : "";
         const relatedPaymentIds = relatedPaymentIdsForOrder(s.payments, order);
@@ -458,6 +478,7 @@ export const useWarehouse = create<Store>()(
                   date: nextDate,
                   items: allocation.items,
                   missing: nextMissing,
+                  prices: nextPrices,
                   totalPairs,
                   totalSum,
                   paidSum: candidate.paidSum - refund,
@@ -544,7 +565,7 @@ export const useWarehouse = create<Store>()(
         return { ok: true, shipped: totalPairs, missing: itemTotal(nextMissing), refunded: refund };
       },
 
-      createAssembly: ({ clientId, items, note = "", date = todayISO() }) => {
+      createAssembly: ({ clientId, items, prices, note = "", date = todayISO() }) => {
         const requested = normalizeOrderItems(items);
         if (!requested.length) return null;
         const s = get();
@@ -561,8 +582,9 @@ export const useWarehouse = create<Store>()(
               items: requested,
               missing: [],
               picked: [],
+              ...(normalizePrices(prices) ? { prices: normalizePrices(prices) } : {}),
               totalPairs,
-              totalSum: totalPairs * SELL_PRICE,
+              totalSum: itemsSum(requested, normalizePrices(prices)),
               paidSum: 0,
               status: "assembling",
               note: note.trim(),
@@ -573,7 +595,7 @@ export const useWarehouse = create<Store>()(
         return orderId;
       },
 
-      updateAssembly: ({ orderId, items, note, date }) => {
+      updateAssembly: ({ orderId, items, prices, note, date }) => {
         const s = get();
         const order = s.orders.find((candidate) => candidate.id === orderId);
         if (!order || order.status !== "assembling") return false;
@@ -587,8 +609,12 @@ export const useWarehouse = create<Store>()(
                   ...candidate,
                   items: requested,
                   picked: capItems(candidate.picked ?? [], requested),
+                  prices: prices === undefined ? candidate.prices : normalizePrices(prices),
                   totalPairs,
-                  totalSum: totalPairs * SELL_PRICE,
+                  totalSum: itemsSum(
+                    requested,
+                    prices === undefined ? candidate.prices : normalizePrices(prices),
+                  ),
                   date: validDate(date, validDate(candidate.date)),
                   note: note === undefined ? candidate.note : note.trim(),
                 }
@@ -620,7 +646,7 @@ export const useWarehouse = create<Store>()(
           return { ok: false, reason: "insufficient_stock", shortages: allocation.shortages };
         }
         const totalPairs = itemTotal(allocation.items);
-        const totalSum = totalPairs * SELL_PRICE;
+        const totalSum = itemsSum(allocation.items, order.prices);
         const recordDate = validDate(date, validDate(order.date));
         const client = s.clients.find((candidate) => candidate.id === order.clientId);
         set({
@@ -662,6 +688,40 @@ export const useWarehouse = create<Store>()(
         if (!order || order.status !== "assembling") return false;
         set({ orders: s.orders.filter((candidate) => candidate.id !== orderId) });
         return true;
+      },
+
+      deleteOrder: (orderId) => {
+        const order = get().orders.find((candidate) => candidate.id === orderId);
+        if (!order) return { ok: false, reason: "not_found" };
+        let returned = 0;
+        let refunded = 0;
+        if (order.status === "assembling") {
+          get().deleteAssembly(orderId);
+          return { ok: true, returned: 0, refunded: 0 };
+        }
+        if (order.status === "shipped") {
+          const result = get().cancelOrder(orderId);
+          if (!result.ok) {
+            return {
+              ok: false,
+              reason: result.reason === "invalid_history" ? "invalid_history" : "not_found",
+            };
+          }
+          returned = result.returned;
+          refunded = result.refunded;
+        }
+        const s = get();
+        set({
+          orders: s.orders.filter((candidate) => candidate.id !== orderId),
+          // Записи об отгрузке/правке/отмене уходят вместе с заказом.
+          // Денежные записи (оплаты, возвраты, касса) остаются как история денег.
+          events: s.events.filter(
+            (event) =>
+              event.orderId !== orderId ||
+              (event.type !== "order" && event.type !== "order_edit" && event.type !== "cancel"),
+          ),
+        });
+        return { ok: true, returned, refunded };
       },
 
       cancelOrder: (orderId) => {

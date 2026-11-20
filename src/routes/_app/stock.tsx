@@ -104,8 +104,14 @@ function StockPage() {
       <ColorPills value={color} onChange={setColor} />
 
       <div className="grid grid-cols-2 gap-3">
-        <div className="helious-metric"><Package className="mb-2 size-5 text-accent"/><Stat label="Пар" value={formatNum(total)} /></div>
-        <div className="helious-metric"><Layers className="mb-2 size-5 text-sky-600"/><Stat label="Упаковок" value={formatNum(Math.floor(total / PACK))} /></div>
+        <div className="helious-metric">
+          <Package className="mb-2 size-5 text-accent" />
+          <Stat label="Пар" value={formatNum(total)} />
+        </div>
+        <div className="helious-metric">
+          <Layers className="mb-2 size-5 text-sky-600" />
+          <Stat label="Упаковок" value={formatNum(Math.floor(total / PACK))} />
+        </div>
       </div>
 
       {incomingOpen ? (
