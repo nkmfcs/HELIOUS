@@ -6,7 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, Group, SectionLabel, Stat } from "@/components/ui/card";
 import { Input, Label, Textarea } from "@/components/ui/input";
-import { formatCompact, formatNum } from "@/lib/format";
+import { formatNum, todayISO } from "@/lib/format";
+import { PeriodPicker } from "@/components/period-picker";
+import { inPeriod, type Period, periodRange } from "@/lib/period";
 import { useWarehouse } from "@/lib/store";
 import { workerAccrued, workerOwed, workerPaid } from "@/lib/stats";
 import { workerPairs } from "@/lib/worker-pay";
@@ -28,20 +30,27 @@ function WorkersPage() {
   const [rate, setRate] = useState("");
   const [note, setNote] = useState("");
   const [filter, setFilter] = useState<RoleFilter>("all");
+  const [period, setPeriod] = useState<Period>({ kind: "all", anchor: todayISO() });
+  const range = periodRange(period);
+  const periodState = {
+    ...state,
+    payables: (state.payables ?? []).filter((entry) => inPeriod(entry.date, range)),
+    cash: (state.cash ?? []).filter((entry) => inPeriod(entry.date, range)),
+  };
 
   const workers = (state.workers ?? []).map((worker) => ({
     ...worker,
-    accrued: workerAccrued(state, worker.id),
-    paid: workerPaid(state, worker.id),
+    accrued: workerAccrued(periodState, worker.id),
+    paid: workerPaid(periodState, worker.id),
     owed: workerOwed(state, worker.id),
-    pairs: workerPairs(state, worker.id),
+    pairs: workerPairs(periodState, worker.id),
   }));
   const list = workers
     .filter((worker) => filter === "all" || worker.role === filter)
     .sort((a, b) => b.owed - a.owed || a.name.localeCompare(b.name, "ru"));
   const accrued = workers.reduce((total, worker) => total + worker.accrued, 0);
   const paid = workers.reduce((total, worker) => total + worker.paid, 0);
-  const owed = workers.reduce((total, worker) => total + worker.owed, 0);
+  const owed = workers.reduce((total, worker) => total + Math.max(0, worker.owed), 0);
 
   function createWorker() {
     if (!name.trim()) {
@@ -80,18 +89,25 @@ function WorkersPage() {
         </Button>
       </div>
 
+      <PeriodPicker value={period} onChange={setPeriod} />
+
       <Card className="grid grid-cols-2 gap-px overflow-hidden bg-border lg:grid-cols-4">
         <div className="bg-surface p-4">
           <Stat label="Работников" value={formatNum(workers.length)} />
         </div>
         <div className="bg-surface p-4">
-          <Stat label="Начислено" value={formatCompact(accrued)} />
+          <Stat label="Начислено" value={formatNum(accrued)} />
         </div>
         <div className="bg-surface p-4">
-          <Stat label="Выплачено" value={formatCompact(paid)} tone="ok" />
+          <Stat label="Выплачено" value={formatNum(paid)} tone="ok" />
         </div>
         <div className="bg-surface p-4">
-          <Stat label="К выплате" value={formatCompact(owed)} tone={owed > 0 ? "danger" : "ok"} />
+          <Stat
+            label="К выплате"
+            value={formatNum(owed)}
+            tone={owed > 0 ? "danger" : "ok"}
+            hint={period.kind !== "all" ? "На сегодня, за всё время" : undefined}
+          />
         </div>
       </Card>
 
@@ -235,20 +251,22 @@ function WorkersPage() {
                       {worker.pairs > 0 ? (
                         <span className="text-subtle">Принято {formatNum(worker.pairs)} пар</span>
                       ) : null}
-                      <span className="text-subtle">Начислено {formatCompact(worker.accrued)}</span>
-                      <span className="text-ok">Выплачено {formatCompact(worker.paid)}</span>
+                      <span className="text-subtle">Начислено {formatNum(worker.accrued)}</span>
+                      <span className="text-ok">Выплачено {formatNum(worker.paid)}</span>
                     </div>
                   </div>
                   <div className="shrink-0 text-right">
                     <div
                       className={cn(
                         "text-sm font-semibold tabular",
-                        worker.owed > 0 ? "text-danger" : "text-ok",
+                        worker.owed > 0 ? "text-danger" : worker.owed < 0 ? "text-warn" : "text-ok",
                       )}
                     >
-                      {formatCompact(worker.owed)}
+                      {worker.owed < 0 ? `−${formatNum(-worker.owed)}` : formatNum(worker.owed)}
                     </div>
-                    <div className="mt-0.5 text-[11px] text-subtle">к выплате</div>
+                    <div className="mt-0.5 text-[11px] text-subtle">
+                      {worker.owed < 0 ? "аванс" : "к выплате"}
+                    </div>
                   </div>
                   <ChevronRight className="size-4 shrink-0 text-subtle" />
                 </Link>
