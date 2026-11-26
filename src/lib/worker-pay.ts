@@ -48,3 +48,50 @@ export function pairsAccrualLabel(
   if (!pairs || !rate || pairs * rate !== entry.amount) return null;
   return `${format(pairs)} пар × ${format(rate)}`;
 }
+
+type PaymentRow = {
+  amount: number;
+  date: string;
+  createdAt?: string;
+  workerId?: string;
+  kind?: string;
+  payableId?: string;
+};
+
+/**
+ * Заново распределяет выплаты работнику по его начислениям.
+ * Нужна после удаления выплаты или начисления, чтобы остатки «Осталось» совпадали с кассой.
+ * Выплата «Закрыть» по конкретному начислению сначала идёт в него; остальное — от старых начислений к новым.
+ */
+export function reallocateWorkerPayments<P extends Payable>(
+  payables: P[],
+  cash: PaymentRow[],
+  workerId: string,
+): P[] {
+  const result = payables.map((payable) =>
+    payable.workerId === workerId ? { ...payable, paidSum: 0 } : payable,
+  );
+  const own = result
+    .map((payable, index) => ({ payable, index }))
+    .filter(({ payable }) => payable.workerId === workerId)
+    .sort((a, b) => a.payable.date.localeCompare(b.payable.date) || a.index - b.index)
+    .map(({ payable }) => payable);
+  const payments = cash
+    .filter((row) => row.kind === "worker" && row.workerId === workerId)
+    .sort(
+      (a, b) =>
+        a.date.localeCompare(b.date) || (a.createdAt ?? "").localeCompare(b.createdAt ?? ""),
+    );
+  for (const payment of payments) {
+    let left = Math.max(0, Math.round(payment.amount));
+    const target = payment.payableId ? own.find((p) => p.id === payment.payableId) : undefined;
+    for (const payable of target ? [target, ...own] : own) {
+      if (left <= 0) break;
+      const take = Math.min(left, payable.amount - payable.paidSum);
+      if (take <= 0) continue;
+      payable.paidSum += take;
+      left -= take;
+    }
+  }
+  return result;
+}

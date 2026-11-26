@@ -37,6 +37,8 @@ function WorkerPage() {
   const addWorkerPairs = useWarehouse((store) => store.addWorkerPairs);
   const payPayable = useWarehouse((store) => store.payPayable);
   const dropProductionAccrual = useWarehouse((store) => store.dropProductionAccrual);
+  const deleteWorkerAccrual = useWarehouse((store) => store.deleteWorkerAccrual);
+  const deleteCash = useWarehouse((store) => store.deleteCash);
   const updateWorker = useWarehouse((store) => store.updateWorker);
   const worker = (state.workers ?? []).find((entry) => entry.id === workerId);
 
@@ -85,6 +87,8 @@ function WorkerPage() {
   const activity = [
     ...payables.map((entry) => ({
       id: `accrual-${entry.id}`,
+      sourceId: entry.id,
+      removable: !entry.productionMoveId,
       kind: "accrual" as const,
       date: entry.date,
       amount: entry.amount,
@@ -96,6 +100,8 @@ function WorkerPage() {
     })),
     ...payments.map((entry) => ({
       id: `payment-${entry.id}`,
+      sourceId: entry.id,
+      removable: !entry.locked,
       kind: "payment" as const,
       date: entry.date,
       amount: entry.amount,
@@ -103,6 +109,27 @@ function WorkerPage() {
       detail: "Записано в кассе",
     })),
   ].sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
+
+  function removeActivity(entry: (typeof activity)[number]) {
+    const what = entry.kind === "accrual" ? "начисление" : "выплату";
+    if (
+      !confirm(
+        `Удалить ${what} ${formatNum(entry.amount)} от ${formatDate(entry.date)}?\n\nВыплаты заново распределятся по начислениям, остаток «К выплате» пересчитается.`,
+      )
+    )
+      return;
+    if (entry.kind === "accrual") {
+      const error = deleteWorkerAccrual(entry.sourceId);
+      if (error) {
+        toast.error(error);
+        return;
+      }
+    } else {
+      deleteCash(entry.sourceId);
+    }
+    setEditingAccrual(null);
+    toast(entry.kind === "accrual" ? "Начисление удалено" : "Выплата удалена");
+  }
 
   function parseAmount(raw: string) {
     return Number(String(raw).replace(/\s/g, "").replace(",", "."));
@@ -600,6 +627,16 @@ function WorkerPage() {
                     >
                       {isAccrual ? "+" : "−"}
                       {formatNum(entry.amount)}
+                      {entry.removable ? (
+                        <button
+                          type="button"
+                          aria-label={isAccrual ? "Удалить начисление" : "Удалить выплату"}
+                          className="mt-2 flex min-h-9 items-center justify-end gap-1 px-1 text-xs font-normal text-danger"
+                          onClick={() => removeActivity(entry)}
+                        >
+                          <Trash2 className="size-3.5" /> удалить
+                        </button>
+                      ) : null}
                     </div>
                   </div>
                 </div>

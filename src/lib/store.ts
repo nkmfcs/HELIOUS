@@ -29,7 +29,7 @@ import {
 } from "./production";
 import { productionToken, replayProduction, validateMoveInput, earnsForMove, reconcileProductionPayable, balanceItems, workerLocation, cancelProductionMoves } from "./production-moves";
 import { orderDebt } from "./stats";
-import { buildPairsAccrual, cleanWholeNumber } from "./worker-pay";
+import { buildPairsAccrual, cleanWholeNumber, reallocateWorkerPayments } from "./worker-pay";
 import {
   addItemsToStock,
   allocateOrder,
@@ -171,6 +171,8 @@ type Actions = {
     workerId?: string;
   }) => void;
   payPayable: (id: string, amount?: number, date?: string, note?: string) => void;
+  /** Удалить ручное начисление работника. Возвращает текст ошибки или `null`. */
+  deleteWorkerAccrual: (id: string) => string | null;
   updateWorkerAccrual: (
     id: string,
     patch: Pick<Payable, "amount" | "date" | "note">,
@@ -918,6 +920,11 @@ export const useWarehouse = create<Store>()(
           const row = (s.cash ?? []).find((t) => t.id === id);
           if (row?.locked) return {};
           const cash = (s.cash ?? []).filter((t) => t.id !== id);
+          if (row?.kind === "worker" && row.workerId)
+            return {
+              cash,
+              payables: reallocateWorkerPayments(s.payables ?? [], cash, row.workerId),
+            };
           if (!row?.paymentId) return { cash };
           const pay = s.payments.find((p) => p.id === row.paymentId);
           const payments = s.payments.filter((p) => p.id !== row.paymentId);
@@ -1001,6 +1008,16 @@ export const useWarehouse = create<Store>()(
         return null;
       },
 
+      deleteWorkerAccrual: (id) => {
+        const s = get();
+        const row = (s.payables ?? []).find((entry) => entry.id === id);
+        if (!row || !row.workerId) return "Начисление работника не найдено";
+        if (row.productionMoveId) return "Исправьте связанную приёмку в журнале производства";
+        const rest = (s.payables ?? []).filter((entry) => entry.id !== id);
+        set({ payables: reallocateWorkerPayments(rest, s.cash ?? [], row.workerId) });
+        return null;
+      },
+
       payPayable: (id, amount, date = todayISO(), note = "") => {
         const s = get();
         const row = (s.payables ?? []).find((p) => p.id === id);
@@ -1024,6 +1041,7 @@ export const useWarehouse = create<Store>()(
               person: row.person,
               note: note.trim() || row.note || "Закрыл долг работнику",
               workerId: row.workerId,
+              payableId: row.id,
               createdAt: new Date().toISOString(),
             },
           ],
