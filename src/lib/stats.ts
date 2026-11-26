@@ -59,10 +59,9 @@ export function workerAccrued(state: WarehouseState, workerId: string): number {
     .reduce((total, payable) => total + payable.amount, 0);
 }
 
+/** Сколько ещё должны работнику; меньше нуля — аванс (выплачено больше, чем начислено). */
 export function workerOwed(state: WarehouseState, workerId: string): number {
-  return (state.payables ?? [])
-    .filter((p) => p.workerId === workerId)
-    .reduce((n, p) => n + payableLeft(p), 0);
+  return workerAccrued(state, workerId) - workerPaid(state, workerId);
 }
 
 export function totalDebt(state: WarehouseState): number {

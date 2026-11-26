@@ -55,3 +55,10 @@ test("выплата по кнопке «Закрыть» сначала идё�
     [200, 1000, 200],
   );
 });
+
+test("переплата остаётся авансом и гасит следующее начисление", () => {
+  const before = [acc("a", "2026-11-01", 1000)];
+  const after = reallocateWorkerPayments([...before, acc("b", "2026-11-10", 1500)], [pay("2026-11-02", 1800)], "said");
+  assert.deepEqual(after.map((p) => p.paidSum), [1000, 800]);
+  assert.equal(left(after), 700);
+});

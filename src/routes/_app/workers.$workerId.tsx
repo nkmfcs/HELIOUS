@@ -18,7 +18,9 @@ import { Card, Group, SectionLabel, Stat } from "@/components/ui/card";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { ProductionWorkerBalance } from "@/components/production-movements";
 import { WorkerAccrualEditor } from "@/components/worker-accrual-editor";
-import { formatCompact, formatDate, formatNum, todayISO } from "@/lib/format";
+import { PeriodPicker } from "@/components/period-picker";
+import { inPeriod, type Period, periodRange } from "@/lib/period";
+import { formatDate, formatNum, todayISO } from "@/lib/format";
 import { useWarehouse } from "@/lib/store";
 import { payableLeft, workerAccrued, workerOwed, workerPaid } from "@/lib/stats";
 import { cleanWholeNumber, pairsAccrualLabel, pairsAmount, workerPairs } from "@/lib/worker-pay";
@@ -59,6 +61,7 @@ function WorkerPage() {
   const [editNote, setEditNote] = useState(worker?.note ?? "");
   const [editRate, setEditRate] = useState(worker?.rate ? String(worker.rate) : "");
   const [editingAccrual, setEditingAccrual] = useState<Payable | null>(null);
+  const [period, setPeriod] = useState<Period>({ kind: "all", anchor: todayISO() });
 
   if (!worker) {
     return (
@@ -71,10 +74,19 @@ function WorkerPage() {
     );
   }
 
-  const paid = workerPaid(state, worker.id);
+  const range = periodRange(period);
+  const periodPayables = (state.payables ?? []).filter(
+    (entry) => entry.workerId === worker.id && inPeriod(entry.date, range),
+  );
+  const periodState = {
+    ...state,
+    payables: periodPayables,
+    cash: (state.cash ?? []).filter((entry) => inPeriod(entry.date, range)),
+  };
+  const paid = workerPaid(periodState, worker.id);
+  const accrued = workerAccrued(periodState, worker.id);
+  const pairsTaken = workerPairs(periodState, worker.id);
   const owed = workerOwed(state, worker.id);
-  const accrued = workerAccrued(state, worker.id);
-  const pairsTaken = workerPairs(state, worker.id);
   const rate = cleanWholeNumber(worker.rate);
   const pairsCount = cleanWholeNumber(parseAmount(pairs));
   const payables = (state.payables ?? [])
@@ -108,7 +120,9 @@ function WorkerPage() {
       note: entry.note,
       detail: "Записано в кассе",
     })),
-  ].sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
+  ]
+    .filter((entry) => inPeriod(entry.date, range))
+    .sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
 
   function removeActivity(entry: (typeof activity)[number]) {
     const what = entry.kind === "accrual" ? "начисление" : "выплату";
@@ -302,18 +316,31 @@ function WorkerPage() {
         </section>
       ) : null}
 
+      <PeriodPicker value={period} onChange={setPeriod} />
+
       <Card className="grid grid-cols-2 gap-px overflow-hidden bg-border sm:grid-cols-4">
         <div className="bg-surface p-3 sm:p-4">
           <Stat label="Принято пар" value={formatNum(pairsTaken)} />
         </div>
         <div className="bg-surface p-3 sm:p-4">
-          <Stat label="Начислено" value={formatCompact(accrued)} />
+          <Stat label="Начислено" value={formatNum(accrued)} />
         </div>
         <div className="bg-surface p-3 sm:p-4">
-          <Stat label="Выплачено" value={formatCompact(paid)} tone="ok" />
+          <Stat label="Выплачено" value={formatNum(paid)} tone="ok" />
         </div>
         <div className="bg-surface p-3 sm:p-4">
-          <Stat label="К выплате" value={formatCompact(owed)} tone={owed > 0 ? "danger" : "ok"} />
+          <Stat
+            label={owed < 0 ? "Аванс" : "К выплате"}
+            value={owed < 0 ? `−${formatNum(-owed)}` : formatNum(owed)}
+            tone={owed > 0 ? "danger" : owed < 0 ? "warn" : "ok"}
+            hint={
+              owed < 0
+                ? "Выдано больше, чем начислено — вычтется из следующих начислений"
+                : period.kind !== "all"
+                  ? "Остаток на сегодня, за всё время"
+                  : undefined
+            }
+          />
         </div>
       </Card>
 
@@ -587,7 +614,11 @@ function WorkerPage() {
         {activity.length === 0 ? (
           <Card className="px-5 py-7 text-center">
             <UserRound className="mx-auto size-5 text-subtle" />
-            <p className="mt-2 text-sm text-muted">Начислений и выплат пока нет.</p>
+            <p className="mt-2 text-sm text-muted">
+              {period.kind === "all"
+                ? "Начислений и выплат пока нет."
+                : "За этот период записей нет."}
+            </p>
           </Card>
         ) : (
           <Group>

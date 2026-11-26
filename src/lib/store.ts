@@ -57,6 +57,22 @@ function validDate(value: string | undefined, fallback = todayISO()): string {
     : value;
 }
 
+/** Если работнику выдан аванс, новое начисление сразу гасится из него. */
+function withWorkerAdvance(
+  state: Pick<WarehouseState, "cash" | "payables">,
+  workerId: string | undefined,
+  payables: Payable[],
+): Payable[] {
+  if (!workerId) return payables;
+  const paid = (state.cash ?? [])
+    .filter((row) => row.kind === "worker" && row.workerId === workerId)
+    .reduce((total, row) => total + row.amount, 0);
+  const allocated = (state.payables ?? [])
+    .filter((payable) => payable.workerId === workerId)
+    .reduce((total, payable) => total + payable.paidSum, 0);
+  return paid > allocated ? reallocateWorkerPayments(payables, state.cash ?? [], workerId) : payables;
+}
+
 function relatedPaymentIdsForOrder(
   payments: WarehouseState["payments"],
   order: Pick<WarehouseState["orders"][number], "id" | "clientId">,
@@ -961,7 +977,7 @@ export const useWarehouse = create<Store>()(
         const n = Math.round(Math.abs(amount));
         if (!Number.isFinite(n) || n <= 0 || !person.trim()) return;
         set((s) => ({
-          payables: [
+          payables: withWorkerAdvance(s, workerId, [
             ...(s.payables ?? []),
             {
               id: uid("d"),
@@ -972,7 +988,7 @@ export const useWarehouse = create<Store>()(
               date: validDate(date),
               workerId,
             },
-          ],
+          ]),
         }));
       },
 
@@ -1149,7 +1165,7 @@ export const useWarehouse = create<Store>()(
         const accrual = buildPairsAccrual(worker, pairs);
         if ("error" in accrual) return accrual.error;
         set((s) => ({
-          payables: [
+          payables: withWorkerAdvance(s, workerId, [
             ...(s.payables ?? []),
             {
               id: uid("d"),
@@ -1159,7 +1175,7 @@ export const useWarehouse = create<Store>()(
               date: validDate(date),
               workerId,
             },
-          ],
+          ]),
         }));
         return null;
       },
