@@ -126,6 +126,8 @@ export type CashTxn = {
   note: string;
   paymentId?: string;
   workerId?: string;
+  /** Начисление, которое закрыла эта выплата (кнопка «Закрыть»). */
+  payableId?: string;
   locked?: boolean;
   createdAt: string;
 };
